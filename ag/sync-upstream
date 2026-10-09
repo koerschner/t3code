@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# ag/sync-upstream: merge pingdotgg/t3code main into this fork and ship it. Run nightly by the ag routine
+# `t3-upstream-sync` (a Pi session, so a conflict or a failing gate gets fixed instead of just reported).
+#
+#   ag/sync-upstream            merge upstream/main into origin/main in a scratch worktree, then ag/ship it
+#   exit 0  shipped, or nothing to merge
+#   exit 3  merge conflicts: they're left in the printed worktree for the caller to resolve, commit, and `ag/ship`
+#   exit 1  merged cleanly but ag/ship failed (its output says why); the merge commit is in the printed worktree
+set -euo pipefail
+REPO=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+cd "$REPO"
+git fetch -q origin main
+git fetch -q upstream main
+if git merge-base --is-ancestor upstream/main origin/main; then echo "up to date with upstream ($(git rev-parse --short upstream/main))"; exit 0; fi
+WT=$HOME/t3code-sync-$(date -u +%Y%m%d)
+git worktree remove --force "$WT" 2>/dev/null || true
+git worktree add -q --detach "$WT" origin/main
+cd "$WT"
+n=$(git rev-list --count origin/main..upstream/main)
+if ! git merge -q --no-ff -m "Merge upstream pingdotgg/t3code main ($n commits)" upstream/main; then
+	echo "CONFLICTS in $WT:"; git diff --name-only --diff-filter=U
+	echo "Resolve them (FORK.md: keep both sides; ours lives in ag/ dirs and the hooks listed there), commit, then: cd $WT && ~/t3code/ag/ship"
+	exit 3
+fi
+echo "merged $n upstream commits in $WT"
+if "$REPO/ag/ship" HEAD; then
+	cd "$REPO"; git worktree remove --force "$WT"; git pull -q --ff-only origin main 2>/dev/null || true
+else
+	echo "ship failed; the merge is in $WT (fix, commit, then cd $WT && ~/t3code/ag/ship)"; exit 1
+fi
