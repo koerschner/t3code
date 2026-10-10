@@ -105,7 +105,9 @@ say "typecheck"
 node_modules/.bin/vp run --filter t3 --filter @t3tools/web --filter @t3tools/contracts --filter @t3tools/client-runtime --filter @t3tools/shared typecheck >.typecheck.log 2>&1 || { tail -40 .typecheck.log >&2; die "typecheck failed"; }
 if ((TESTS)); then
 	# Each changed package runs its own vitest config, limited to tests affected by the change.
-	pkgs=$(git diff --name-only "$BASE" "$SHA" | grep -oE '^(apps|packages)/[^/]+' | sort -u | while read -r p; do [[ -f $p/package.json ]] && jq -e '.scripts.test' "$p/package.json" >/dev/null && echo "$p"; done || true)
+	# Only what the server ships (FORK.md "Surfaces"): the desktop, mobile and marketing apps aren't deployed here,
+	# and the desktop tests need an Electron binary the headless host doesn't have.
+	pkgs=$(git diff --name-only "$BASE" "$SHA" | grep -oE '^(apps/(server|web)|packages/[^/]+)' | sort -u | while read -r p; do [[ -f $p/package.json ]] && jq -e '.scripts.test' "$p/package.json" >/dev/null && echo "$p"; done || true)
 	say "tests affected since ${BASE:0:10} in: ${pkgs:-nothing}"
 	: >.test.log
 	for p in $pkgs; do
