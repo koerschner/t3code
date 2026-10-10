@@ -142,6 +142,7 @@ export function installNormalMode(win: Window = window) {
       const target = asElement(event.target);
       if (!target?.closest(COMPOSER) || document.querySelector(FLOATING_LAYER)) return;
       if (document.querySelector("[data-composer-command-drawer]")) return;
+      insertRequestedAt = 0; // a refocus right after this Esc must not count as asked for
       setTimeout(() => {
         const active = document.activeElement as HTMLElement | null;
         if (active?.closest(COMPOSER)) active.blur();
