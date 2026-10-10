@@ -23,8 +23,11 @@ export function useRevealActiveSidebarRow(
 }
 
 export function revealSidebarRow(row: HTMLElement): void {
-  // Wait a frame so a just-expanded group or freshly mounted row has its final position.
-  requestAnimationFrame(() => {
-    if (row.isConnected) row.scrollIntoView({ block: "nearest", inline: "nearest" });
-  });
+  // Rows use content-visibility with estimated heights, so the layout shifts as rows scrolled past render.
+  // Center the row on the next frame (a just-expanded group has its final position), then correct once settled.
+  const reveal = () => {
+    if (row.isConnected) row.scrollIntoView({ block: "center", inline: "nearest" });
+  };
+  requestAnimationFrame(reveal);
+  setTimeout(reveal, 250);
 }
