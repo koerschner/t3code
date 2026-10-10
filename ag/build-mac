@@ -22,7 +22,7 @@ if [[ $(uname) != Darwin ]]; then # on the session host: run the same script on 
 	exec ag-mac run "cd ~/t3code && git fetch -q origin && git -c advice.detachedHead=false checkout -q --detach $rev && ag/build-mac $rev"
 fi
 
-export PATH=/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:$PATH
+export PATH=/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:$HOME/.cargo/bin:$PATH
 say() { printf '\033[1m▸ %s\033[0m\n' "$*"; }
 die() { printf '\033[31mbuild-mac: %s\033[0m\n' "$*" >&2; record fail "$*"; exit 1; }
 record() { mkdir -p "$(dirname "$LOG")"; printf '{"ts":"%s","sha":"%s","result":"%s","note":"%s"}\n' "$(date -u +%FT%TZ)" "${SHA:-}" "$1" "$2" >>"$LOG"; }
@@ -51,6 +51,7 @@ VERSION="$core-ag.$(date -u +%Y%m%d).g$SHORT"
 jq --arg n "$APP" '.productName = $n' apps/desktop/package.json >.pkg && mv .pkg apps/desktop/package.json
 
 say "build $VERSION"
+rustup update stable >/dev/null 2>&1 || true # the native helpers (resource monitor) track recent rustc
 unset GITHUB_REPOSITORY T3CODE_DESKTOP_UPDATE_REPOSITORY
 export PATH="$DIR/node_modules/.bin:$PATH" # the build script spawns vp
 node scripts/build-desktop-artifact.ts --platform mac --target dir --arch arm64 --build-version "$VERSION" \
