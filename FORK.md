@@ -21,6 +21,8 @@ upstream. Here, the person you work for is Nathan.
 This repo is **slop-cannon**, like the ag repo: commit, ship and push to `main` without asking, no PRs. Never
 push to `upstream`, and never open PRs against pingdotgg/t3code unless Nathan asks.
 
+Deploys never interrupt turns: if one is running, `ag/ship` stages the build and restarts the server once all turns finish (`ag/ship --status` shows it as pending).
+
 Other commands: `ag/ship --status`, `ag/ship --rollback`, `ag/sync-upstream`, `ag/build-mac [<rev>]`,
 `ag/build-mac --status`. What's left to build from Ag: `ag/TODO.md` (check items off as they ship).
 
