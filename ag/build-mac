@@ -54,9 +54,11 @@ say "build $VERSION"
 rustup update stable >/dev/null 2>&1 || true # the native helpers (resource monitor) track recent rustc
 unset GITHUB_REPOSITORY T3CODE_DESKTOP_UPDATE_REPOSITORY
 export PATH="$DIR/node_modules/.bin:$PATH" # the build script spawns vp
-node scripts/build-desktop-artifact.ts --platform mac --target dir --arch arm64 --build-version "$VERSION" \
+node scripts/build-desktop-artifact.ts --platform mac --target zip --arch arm64 --build-version "$VERSION" \
 	--output-dir "$DIR/release" >.build.log 2>&1 || { tail -30 .build.log >&2; die "build failed (see $DIR/.build.log)"; }
-BUNDLE=$(find "$DIR/release" -maxdepth 3 -name "$APP.app" -type d | head -1)
+zip=$(find "$DIR/release" -maxdepth 1 -name '*.zip' | head -1) # the dir target's .app stays in a deleted stage dir
+[[ -n $zip ]] && ditto -x -k "$zip" "$DIR/release/app"
+BUNDLE=$(find "$DIR/release/app" -maxdepth 2 -name "$APP.app" -type d 2>/dev/null | head -1)
 [[ -n $BUNDLE ]] || die "no $APP.app in $DIR/release"
 [[ ! -e $BUNDLE/Contents/Resources/app-update.yml ]] || die "the build has an update feed (app-update.yml); refusing to install"
 codesign --verify --deep "$BUNDLE" 2>/dev/null || codesign --force --deep --sign - "$BUNDLE" >/dev/null 2>&1 || die "ad-hoc signing failed"
