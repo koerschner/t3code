@@ -170,6 +170,7 @@ import {
 import { searchableSetting } from "./settingsSearch";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { PanelAnimationsPreview } from "./PanelAnimationsPreview";
+import { SingleWorkspaceSetting } from "../../ag/SingleWorkspaceSetting";
 
 const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
   artwork: "Artwork",
@@ -2483,6 +2484,7 @@ export function GeneralSettingsPanel() {
       </SettingsSection>
 
       <SettingsSection id="behavior" title="Behavior">
+        <SingleWorkspaceSetting />
         <NotificationSettings />
         <SettingsRow
           {...searchableSetting("in-app-notifications")}

@@ -14,10 +14,12 @@ import {
 } from "./lib/windowControlsOverlay";
 import { AppRoot } from "./AppRoot";
 import { installNormalMode } from "./ag/normalMode";
+import { installSingleWorkspace } from "./ag/singleWorkspace";
 import { clearChunkReloadGuard, reloadOnceForChunkLoadError } from "./lib/chunkReloadGuard";
 
 prepareProviderAuthDelivery();
 installNormalMode();
+installSingleWorkspace();
 
 // Electron loads the app from a file-backed shell, so hash history avoids path resolution issues.
 const history = isElectron ? createHashHistory() : createBrowserHistory();

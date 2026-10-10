@@ -1,0 +1,66 @@
+/* Ag fork: Single workspace mode (singleWorkspace.ts). Hooks are data-ag-noise attributes on upstream elements,
+   plus stable aria labels and data attributes upstream already ships. */
+
+/* Anything upstream tags as project / environment / provider identity. */
+html[data-ag-single] [data-ag-noise] {
+  display: none !important;
+}
+
+/* Sidebar header: the project filter and Add project. */
+html[data-ag-single] [aria-label="Add project"],
+html[data-ag-single] [aria-label^="Filter threads by project"] {
+  display: none !important;
+}
+
+/* Chat header: the leading "Project /" crumb. */
+html[data-ag-single]
+  nav[aria-label="Thread breadcrumb"]
+  li:has(button[aria-label^="New thread in "]),
+html[data-ag-single]
+  nav[aria-label="Thread breadcrumb"]
+  li:has(button[aria-label^="New thread in "])
+  + li {
+  display: none !important;
+}
+
+/* Composer: the model picker (switch models with its shortcut or the command palette). */
+html[data-ag-single] [data-chat-provider-model-picker] {
+  display: none !important;
+}
+
+/* Sidebar rows: two lines (title, then branch/diff/PR only when there is one) instead of three fixed ones.
+   The status/actions slot floats over the title's right edge. */
+html[data-ag-single] li[data-thread-item] [data-ag-row="body"] {
+  position: relative;
+  height: auto;
+}
+html[data-ag-single] li[data-thread-item] [data-ag-row="head"] {
+  position: absolute;
+  top: var(--sidebar-content-inset);
+  right: var(--sidebar-row-content-inset);
+  left: var(--sidebar-row-content-inset);
+  pointer-events: none;
+}
+html[data-ag-single] li[data-thread-item] [data-ag-row="head"] > * {
+  pointer-events: auto;
+}
+html[data-ag-single] li[data-thread-item] [data-ag-row="title"] {
+  margin-top: 0;
+  padding-right: 5.5rem;
+}
+html[data-ag-single]
+  li[data-thread-item]
+  [data-ag-row="meta"]:not(:has(> :not(span.flex-1:empty):not([aria-hidden]))) {
+  display: none;
+}
+html[data-ag-single] li[data-thread-item] {
+  contain-intrinsic-size: auto 44px;
+}
+
+html[data-ag-single] .ag-noise {
+  display: none !important;
+}
+/* The project label keeps its flex space so pin and status stay right-aligned. */
+html[data-ag-single] [data-ag-quiet] {
+  visibility: hidden;
+}

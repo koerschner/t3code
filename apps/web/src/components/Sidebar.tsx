@@ -477,13 +477,13 @@ function SidebarThreadTooltip({
         }
       >
         {projectDisplayName ? (
-          <div className="flex min-w-0 items-center gap-2">
+          <div data-ag-noise className="flex min-w-0 items-center gap-2">
             {project ? <ProjectFavicon project={project} className="size-3 shrink-0" /> : null}
             <div className="min-w-0 truncate text-foreground/75">{projectDisplayName}</div>
           </div>
         ) : null}
         {environmentLabel ? (
-          <div className="flex min-w-0 items-center gap-2">
+          <div data-ag-noise className="flex min-w-0 items-center gap-2">
             <EnvironmentMachineIcon
               kind={environmentMachine}
               className="size-3 shrink-0 stroke-muted-foreground"
@@ -506,7 +506,7 @@ function SidebarThreadTooltip({
           </div>
         ) : null}
         {driverKind ? (
-          <div className="flex min-w-0 items-center gap-2">
+          <div data-ag-noise className="flex min-w-0 items-center gap-2">
             <ProviderInstanceIcon
               driverKind={driverKind}
               displayName={
@@ -529,7 +529,7 @@ function SidebarThreadTooltip({
           </div>
         ) : null}
         {previousProviderNames.length > 0 ? (
-          <div className="flex min-w-0 items-center gap-2">
+          <div data-ag-noise className="flex min-w-0 items-center gap-2">
             <ArrowRightLeftIcon className="size-3 shrink-0 stroke-muted-foreground" />
             <div className="min-w-0 truncate text-foreground/75">
               Handed off from {previousProviderNames.join(", ")}
@@ -1988,14 +1988,18 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
           }
         >
           {accessibleTitle}
-          <div className="relative z-10 h-[4.875rem] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)">
-            <div className="flex h-5 min-w-0 items-center gap-1.5">
+          <div
+            data-ag-row="body"
+            className="relative z-10 h-[4.875rem] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)"
+          >
+            <div data-ag-row="head" className="flex h-5 min-w-0 items-center gap-1.5">
               {draftIndicator}
               {props.project ? (
-                <ProjectFavicon project={props.project} className="size-4 shrink-0" />
+                <ProjectFavicon project={props.project} className="ag-noise size-4 shrink-0" />
               ) : null}
               {props.projectDisplayName ? (
                 <span
+                  data-ag-quiet
                   className={cn(
                     "min-w-0 flex-1 truncate text-secondary-label text-xs",
                     shouldRecede ? "font-normal" : "font-medium",
@@ -2151,7 +2155,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                   release click still fires and is consumed. */}
               {props.sweepAction !== null ? dragDestination : null}
             </div>
-            <div className="mt-1 flex min-w-0">
+            <div data-ag-row="title" className="mt-1 flex min-w-0">
               {title}
               {isRegeneratingTitle ? (
                 <span role="status" className="sr-only">
@@ -2159,7 +2163,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                 </span>
               ) : null}
             </div>
-            <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
+            <div
+              data-ag-row="meta"
+              className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs"
+            >
               {/* Always the branch. The plan step used to take this slot while
                   working, but it truncated to a half-sentence and dropped the
                   branch, so the row lost its most stable identifier. */}
@@ -2194,6 +2201,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
               ) : null}
               <span
                 aria-hidden
+                data-ag-noise
                 className="pointer-events-none ml-auto inline-flex shrink-0 items-center gap-1"
               >
                 {isRemote && !showsScratchMachine ? (
