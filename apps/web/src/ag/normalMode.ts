@@ -132,11 +132,21 @@ export function installNormalMode(win: Window = window) {
     },
     { capture: true },
   );
-  // Esc in the prompt (with nothing of its own to close) leaves insert mode.
-  win.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
-    const target = asElement(event.target);
-    if (!target?.closest(COMPOSER) || document.querySelector(FLOATING_LAYER)) return;
-    (document.activeElement as HTMLElement | null)?.blur();
-  });
+  // Esc in the prompt leaves insert mode, unless it closed something of the prompt's own (a menu or popup).
+  // Capture phase, because upstream handlers stop Escape before it bubbles to the window; the blur waits until
+  // they've run, so it can see whether one of them used the key.
+  win.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape" || event.isComposing) return;
+      const target = asElement(event.target);
+      if (!target?.closest(COMPOSER) || document.querySelector(FLOATING_LAYER)) return;
+      setTimeout(() => {
+        if (event.defaultPrevented) return;
+        const active = document.activeElement as HTMLElement | null;
+        if (active?.closest(COMPOSER)) active.blur();
+      }, 0);
+    },
+    { capture: true },
+  );
 }
