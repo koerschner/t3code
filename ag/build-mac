@@ -64,8 +64,11 @@ BUNDLE=$(find "$DIR/release/app" -maxdepth 2 -name "$APP.app" -type d 2>/dev/nul
 codesign --verify --deep "$BUNDLE" 2>/dev/null || codesign --force --deep --sign - "$BUNDLE" >/dev/null 2>&1 || die "ad-hoc signing failed"
 
 say "install on $CLIENT"
-running=$(ssh "$CLIENT" "pgrep -qf '/Applications/$APP.app/Contents/MacOS/' && echo yes || true")
-[[ -n $running ]] && ssh "$CLIENT" "osascript -e 'quit app \"$APP\"'; sleep 3; pkill -f '/Applications/$APP.app/Contents/MacOS/' || true"
+# Match the path literally: pgrep/pkill read "(Ag)" as a regex group and would miss the running app, leaving the old
+# code in memory under a replaced bundle.
+proc="ps ax -o pid=,command= | grep -F '/Applications/$APP.app/Contents/MacOS/' | grep -v grep"
+running=$(ssh "$CLIENT" "$proc | head -1")
+[[ -n $running ]] && ssh "$CLIENT" "osascript -e 'quit app \"$APP\"'; sleep 4; $proc | awk '{print \$1}' | xargs kill 2>/dev/null || true"
 tar -C "$(dirname "$BUNDLE")" -cf - "$APP.app" | ssh "$CLIENT" "set -e; rm -rf '/tmp/$APP.app'; tar -C /tmp -xf -; xattr -cr '/tmp/$APP.app'; rm -rf '/Applications/$APP.app'; mv '/tmp/$APP.app' /Applications/"
 [[ -n $running ]] && ssh "$CLIENT" "open -g '/Applications/$APP.app'"
 
