@@ -23,7 +23,7 @@ if ! git merge -q --no-ff -m "Merge upstream pingdotgg/t3code main ($n commits)"
 	exit 3
 fi
 echo "merged $n upstream commits in $WT"
-if "$REPO/ag/ship" HEAD; then
+if "$REPO/ag/ship" "$(git rev-parse HEAD)"; then # ship resolves revs in $REPO, so pass the merge commit by sha
 	cd "$REPO"; git worktree remove --force "$WT"; git pull -q --ff-only origin main 2>/dev/null || true
 else
 	echo "ship failed; the merge is in $WT (fix, commit, then cd $WT && ~/t3code/ag/ship)"; exit 1

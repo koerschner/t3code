@@ -88,7 +88,10 @@ if [[ ! -f $DIR/.built ]]; then
 	git worktree add --detach "$DIR" "$SHA" >/dev/null
 	cd "$DIR"
 	corepack pnpm install --frozen-lockfile --prefer-offline >"$DIR/.install.log" 2>&1 || die "pnpm install failed (see $DIR/.install.log)"
-	base=$(jq -r .version apps/server/package.json); ver="${base%%-*}-ag.$(git log -1 --format=%cd --date=format:%Y%m%d "$SHA").$SHORT"
+	# Same core as upstream nightlies (package.json patch + 1, scripts/resolve-nightly-release.ts): nightly desktop
+	# and iOS clients compare cores against a non-nightly server, so an unbumped core reads as "server behind".
+	core=$(jq -r '.version | sub("[-+].*$"; "") | split(".") | .[2] = ((.[2] | tonumber) + 1 | tostring) | join(".")' apps/server/package.json)
+	ver="$core-ag.$(git log -1 --format=%cd --date=format:%Y%m%d "$SHA").$SHORT"
 	jq --arg v "$ver" '.version = $v' apps/server/package.json >/tmp/pkg.$$ && mv /tmp/pkg.$$ apps/server/package.json
 	echo "$ver" >.version
 	node_modules/.bin/vp run --filter t3 build >"$DIR/.build.log" 2>&1 || die "build failed (see $DIR/.build.log)"
