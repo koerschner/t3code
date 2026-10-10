@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# ag/build-mac: build this fork's Mac app ("T3 Code (Ag)") on ag-mac and install it on the client Mac (FORK.md).
+#
+#   ag/build-mac [<rev>]      default origin/main. Run from the session host (it drives ag-mac) or on ag-mac itself.
+#   ag/build-mac --status     the installed version and the last builds
+#
+# No upstream file is patched in git. At build time only, in a clean worktree, it stamps:
+#   - productName "T3 Code (Ag)" (apps/desktop/package.json), so it installs beside upstream's apps;
+#   - a non-nightly version with the server's core (<core>-ag.<date>.g<sha>), so upstream's build script gives it
+#     no update feed: no app-update.yml, and the app never replaces itself with upstream's build.
+# It shares upstream's profile (~/Library/Application Support/t3code-v2), so saved servers carry over; quit T3 Code
+# (Nightly) before opening it. Unsigned (ad-hoc); installed by copy, so Gatekeeper never quarantines it.
+set -euo pipefail
+
+APP="T3 Code (Ag)"
+CLIENT=${AG_T3_MAC_CLIENT:-ag-client}
+LOG=$HOME/.local/share/t3-mac-builds/build.jsonl
+
+if [[ $(uname) != Darwin ]]; then # on the session host: run the same script on ag-mac at the same commit
+	[[ ${1:-} == --status ]] && { ssh "$CLIENT" "defaults read '/Applications/$APP.app/Contents/Info' CFBundleShortVersionString 2>/dev/null || echo 'not installed'"; ag-mac run "tail -5 $LOG 2>/dev/null"; exit; }
+	rev=$(git -C "$(dirname "$(readlink -f "$0")")/.." rev-parse "${1:-origin/main}^{commit}")
+	exec ag-mac run "cd ~/t3code && git fetch -q origin && git -c advice.detachedHead=false checkout -q --detach $rev && ag/build-mac $rev"
+fi
+
+export PATH=/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:$PATH
+say() { printf '\033[1m▸ %s\033[0m\n' "$*"; }
+die() { printf '\033[31mbuild-mac: %s\033[0m\n' "$*" >&2; record fail "$*"; exit 1; }
+record() { mkdir -p "$(dirname "$LOG")"; printf '{"ts":"%s","sha":"%s","result":"%s","note":"%s"}\n' "$(date -u +%FT%TZ)" "${SHA:-}" "$1" "$2" >>"$LOG"; }
+
+[[ ${1:-} == --status ]] && { tail -5 "$LOG" 2>/dev/null; exit; }
+REPO=$(cd "$(dirname "$0")/.." && pwd)
+cd "$REPO"
+git fetch -q origin
+SHA=$(git rev-parse "${1:-origin/main}^{commit}")
+SHORT=${SHA:0:10}
+BUILDS=$HOME/.local/share/t3-mac-builds
+DIR=$BUILDS/$SHORT
+mkdir -p "$BUILDS"
+mkdir "$BUILDS/.lock" 2>/dev/null || die "another build is running (remove $BUILDS/.lock if stale)"
+trap 'rmdir "$BUILDS/.lock"' EXIT
+
+say "worktree $SHORT"
+rm -rf "$DIR"; git worktree prune
+git worktree add -q --detach "$DIR" "$SHA"
+cd "$DIR"
+say "install"
+corepack pnpm install --frozen-lockfile --prefer-offline >.install.log 2>&1 || die "pnpm install failed (see $DIR/.install.log)"
+
+core=$(jq -r '.version | sub("[-+].*$"; "") | split(".") | .[2] = ((.[2] | tonumber) + 1 | tostring) | join(".")' apps/server/package.json)
+VERSION="$core-ag.$(date -u +%Y%m%d).g$SHORT"
+jq --arg n "$APP" '.productName = $n' apps/desktop/package.json >.pkg && mv .pkg apps/desktop/package.json
+
+say "build $VERSION"
+unset GITHUB_REPOSITORY T3CODE_DESKTOP_UPDATE_REPOSITORY
+node scripts/build-desktop-artifact.ts --platform mac --target dir --arch arm64 --build-version "$VERSION" \
+	--output-dir "$DIR/release" >.build.log 2>&1 || { tail -30 .build.log >&2; die "build failed (see $DIR/.build.log)"; }
+BUNDLE=$(find "$DIR/release" -maxdepth 3 -name "$APP.app" -type d | head -1)
+[[ -n $BUNDLE ]] || die "no $APP.app in $DIR/release"
+[[ ! -e $BUNDLE/Contents/Resources/app-update.yml ]] || die "the build has an update feed (app-update.yml); refusing to install"
+codesign --verify --deep "$BUNDLE" 2>/dev/null || codesign --force --deep --sign - "$BUNDLE" >/dev/null 2>&1 || die "ad-hoc signing failed"
+
+say "install on $CLIENT"
+running=$(ssh "$CLIENT" "pgrep -qf '/Applications/$APP.app/Contents/MacOS/' && echo yes || true")
+[[ -n $running ]] && ssh "$CLIENT" "osascript -e 'quit app \"$APP\"'; sleep 3; pkill -f '/Applications/$APP.app/Contents/MacOS/' || true"
+tar -C "$(dirname "$BUNDLE")" -cf - "$APP.app" | ssh "$CLIENT" "set -e; rm -rf '/tmp/$APP.app'; tar -C /tmp -xf -; xattr -cr '/tmp/$APP.app'; rm -rf '/Applications/$APP.app'; mv '/tmp/$APP.app' /Applications/"
+[[ -n $running ]] && ssh "$CLIENT" "open -g '/Applications/$APP.app'"
+
+cd "$BUILDS"; ls -1t | grep -vE '^(build\.jsonl|\.lock)$' | tail -n +3 | while read -r old; do git -C "$REPO" worktree remove --force "$BUILDS/$old" 2>/dev/null || rm -rf "${BUILDS:?}/$old"; done
+git -C "$REPO" worktree prune
+record ok "$VERSION"
+echo "installed $APP $VERSION on $CLIENT"
