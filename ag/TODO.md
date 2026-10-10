@@ -35,6 +35,10 @@ What Ag had (ag-dash, tmux, Mac app) that this fork still needs. Check off when 
 - [ ] Esc leaves box
 - [ ] Pinned models
 
+## Sidebar
+
+- [x] Reveal active chat on switch
+
 ## Keys
 
 - [ ] Gmail keys: r j k e z c u ⇧U . / ?

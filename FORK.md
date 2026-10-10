@@ -62,9 +62,10 @@ Upstream lands dozens of commits a day, and `ag/sync-upstream` merges them night
 
 ## Patch surface (every upstream file the fork touches)
 
-| File        | Why                              |
-| ----------- | -------------------------------- |
-| `AGENTS.md` | Pointer to this file (top lines) |
+| File                                  | Why                                                                                                                          |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                           | Pointer to this file (top lines)                                                                                             |
+| `apps/web/src/components/Sidebar.tsx` | `SidebarThreadRow`: `useRevealActiveSidebarRow` wraps the row ref (`apps/web/src/ag/revealActiveSidebarRow.ts`) + its import |
 
 ## Rules carried over from Ag
 
