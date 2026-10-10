@@ -52,6 +52,7 @@ jq --arg n "$APP" '.productName = $n' apps/desktop/package.json >.pkg && mv .pkg
 
 say "build $VERSION"
 unset GITHUB_REPOSITORY T3CODE_DESKTOP_UPDATE_REPOSITORY
+export PATH="$DIR/node_modules/.bin:$PATH" # the build script spawns vp
 node scripts/build-desktop-artifact.ts --platform mac --target dir --arch arm64 --build-version "$VERSION" \
 	--output-dir "$DIR/release" >.build.log 2>&1 || { tail -30 .build.log >&2; die "build failed (see $DIR/.build.log)"; }
 BUNDLE=$(find "$DIR/release" -maxdepth 3 -name "$APP.app" -type d | head -1)
