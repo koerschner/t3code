@@ -7,6 +7,7 @@
 #     --no-push            deploy without pushing (bootstrap, experiments)
 #     --no-tests           skip the affected-tests gate (typecheck still runs)
 #     --base <rev>         what "affected" is measured against (default: the commit now deployed)
+#     --no-mac             don't rebuild the Mac app (ag/build-mac) after pushing
 #   ag/ship --rollback     go back to the previously deployed build
 #   ag/ship --status       what's deployed, and the last few ships
 #
@@ -65,10 +66,10 @@ case ${1:-} in
 	die "rollback target $prev is unhealthy too" ;;
 esac
 
-PUSH=1 TESTS=1 BASE="" REV=HEAD
+PUSH=1 TESTS=1 MAC=1 BASE="" REV=HEAD
 while (($#)); do case $1 in
-	--no-push) PUSH=0 ;; --no-tests) TESTS=0 ;; --base) BASE=$2; shift ;;
-	-*) sed -n '2,13p' "$0"; exit 2 ;; *) REV=$1 ;;
+	--no-push) PUSH=0 ;; --no-tests) TESTS=0 ;; --no-mac) MAC=0 ;; --base) BASE=$2; shift ;;
+	-*) sed -n '2,14p' "$0"; exit 2 ;; *) REV=$1 ;;
 esac; shift; done
 
 cd "$REPO"
@@ -158,4 +159,10 @@ for old in $(ls -1t "$BUILDS" | grep -E '^[0-9a-f]{10}$' | tail -n +$((KEEP + 1)
 done
 git worktree prune
 record ok "$VER"
+# 6. The Mac app bundles its own web UI (FORK.md "Surfaces"): rebuild it when the pushed change can reach it.
+# A failure here doesn't undo the server ship; it's reported, and the next ship (or ag/build-mac) retries.
+if ((PUSH && MAC)) && git diff --name-only "$BASE" "$SHA" | grep -E '^(apps/(web|desktop)|packages/|scripts/|pnpm-lock\.yaml|package\.json)' >/dev/null; then
+	say "Mac app (ag/build-mac)"
+	"$REPO/ag/build-mac" "$SHA" >&2 || say "Mac app build failed: the server is shipped; rerun ag/build-mac $SHORT"
+fi
 echo "shipped $VER  (https://ag.$(grep -m1 '^AG_TAILNET=' ~/ag-personal/env 2>/dev/null | cut -d= -f2 || echo '<tailnet>'))"

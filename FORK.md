@@ -21,16 +21,26 @@ upstream. Here, the person you work for is Nathan.
 This repo is **slop-cannon**, like the ag repo: commit, ship and push to `main` without asking, no PRs. Never
 push to `upstream`, and never open PRs against pingdotgg/t3code unless Nathan asks.
 
-Other commands: `ag/ship --status`, `ag/ship --rollback`, `ag/sync-upstream`.
+Other commands: `ag/ship --status`, `ag/ship --rollback`, `ag/sync-upstream`, `ag/build-mac [<rev>]`,
+`ag/build-mac --status`. What's left to build from Ag: `ag/TODO.md` (check items off as they ship).
+
+## The Mac app
+
+`ag/build-mac` builds upstream's Electron app (`apps/desktop`) from a fork commit on ag-mac and installs it on the
+client Mac as `/Applications/T3 Code (Ag).app`, without patching any upstream file: in its clean build worktree it
+stamps the product name and a non-nightly version (`<core>-ag.<date>.g<sha>`), so upstream's build script gives
+it no update feed and it never replaces itself with upstream's build. It shares upstream's profile (`t3code-v2`),
+so it's used _instead of_ T3 Code (Nightly), which is retired to `/Applications/Retired/`. For fast UI iteration,
+run the web UI against a dev server (`AGENTS.md`); the app itself picks the change up on the next `ag/ship`.
 
 ## Surfaces
 
-| Surface                                                     | Gets fork changes                                                              |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Server                                                      | Yes: `ag/ship`                                                                 |
-| Web UI (served by the server; browser on the Mac and phone) | Yes: `ag/ship`                                                                 |
-| Desktop app (T3 Code Nightly, pointed at the server)        | No. It bundles its own copy of the web UI, so it only shows upstream features. |
-| iOS app                                                     | No (its own native UI; TestFlight).                                            |
+| Surface                                                     | Gets fork changes                                                                                     |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Server                                                      | Yes: `ag/ship`                                                                                        |
+| Web UI (served by the server; browser on the Mac and phone) | Yes: `ag/ship`                                                                                        |
+| Mac app **T3 Code (Ag)** (Nathan's main client)             | Yes: `ag/ship` runs `ag/build-mac` after pushing a change to web, desktop or packages (a few minutes) |
+| iOS app                                                     | No (upstream's native app on TestFlight, pointed at this server; gets server features only)           |
 
 Server-side features (MCP tools, commands, providers, settings) reach every client. UI features show up in the web
 UI only.
