@@ -132,17 +132,17 @@ export function installNormalMode(win: Window = window) {
     },
     { capture: true },
   );
-  // Esc in the prompt leaves insert mode, unless it closed something of the prompt's own (a menu or popup).
-  // Capture phase, because upstream handlers stop Escape before it bubbles to the window; the blur waits until
-  // they've run, so it can see whether one of them used the key.
+  // Esc in the prompt leaves insert mode, unless a prompt menu (slash commands, @files, stash) or a popup is open:
+  // then Esc closes that first. Decided before any handler runs, because the prompt editor (Lexical) marks every
+  // Escape as handled, so defaultPrevented can't tell us whether something used it.
   win.addEventListener(
     "keydown",
     (event) => {
       if (event.key !== "Escape" || event.isComposing) return;
       const target = asElement(event.target);
       if (!target?.closest(COMPOSER) || document.querySelector(FLOATING_LAYER)) return;
+      if (document.querySelector("[data-composer-command-drawer]")) return;
       setTimeout(() => {
-        if (event.defaultPrevented) return;
         const active = document.activeElement as HTMLElement | null;
         if (active?.closest(COMPOSER)) active.blur();
       }, 0);
