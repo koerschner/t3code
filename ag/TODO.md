@@ -41,6 +41,8 @@ What Ag had (ag-dash, tmux, Mac app) that this fork still needs. Check off when 
 
 ## Keys
 
+- [x] Normal mode: j/k, i, e, Esc
+
 - [ ] Gmail keys: r j k e z c u ⇧U . / ?
 - [ ] ⌥↑/⌥↓ next/prev
 - [ ] ⇧⌘⌫ settle
