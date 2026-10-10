@@ -57,7 +57,17 @@ function step(direction: 1 | -1) {
   rowButton(rows[next])?.click();
 }
 
+// Normal mode is the default: T3 focuses the prompt by itself whenever a thread opens, which would put every
+// keystroke into it. Only a focus you asked for (i, a click or tap in the prompt, or a key you just pressed with
+// a modifier, e.g. a shortcut) is allowed to stay; any other focus landing in the prompt is undone.
+let insertRequestedAt = 0;
+const requestInsert = () => {
+  insertRequestedAt = Date.now();
+};
+const insertWasRequested = () => Date.now() - insertRequestedAt < 400;
+
 function focusPrompt() {
+  requestInsert();
   const host = document.querySelector<HTMLElement>(COMPOSER);
   const editor = host?.matches(EDITABLE) ? host : host?.querySelector<HTMLElement>(EDITABLE);
   if (!editor) return;
@@ -94,6 +104,31 @@ export function installNormalMode(win: Window = window) {
       event.preventDefault();
       event.stopImmediatePropagation();
       if (!event.repeat || key === "j" || key === "k") ACTIONS[key]();
+    },
+    { capture: true },
+  );
+  win.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (asElement(event.target)?.closest(COMPOSER)) requestInsert();
+    },
+    { capture: true },
+  );
+  win.addEventListener(
+    "keydown",
+    (event) => {
+      // Shortcuts that focus the prompt (modifier chords) and typing into it while already there count as asking.
+      // Other printable keys keep T3's type-to-start: they begin a prompt, so they count too.
+      if (event.metaKey || event.ctrlKey || event.altKey || event.key.length === 1) requestInsert();
+    },
+    { capture: true },
+  );
+  win.addEventListener(
+    "focusin",
+    (event) => {
+      const target = asElement(event.target);
+      if (!target?.closest(COMPOSER) || insertWasRequested()) return;
+      (target as HTMLElement).blur();
     },
     { capture: true },
   );

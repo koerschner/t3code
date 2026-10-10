@@ -62,11 +62,13 @@ Upstream lands dozens of commits a day, and `ag/sync-upstream` merges them night
 
 ## Patch surface (every upstream file the fork touches)
 
-| File                                  | Why                                                                                                                          |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `AGENTS.md`                           | Pointer to this file (top lines)                                                                                             |
-| `apps/web/src/components/Sidebar.tsx` | `SidebarThreadRow`: `useRevealActiveSidebarRow` wraps the row ref (`apps/web/src/ag/revealActiveSidebarRow.ts`) + its import |
-| `apps/web/src/main.tsx`               | `installNormalMode()` + its import (`apps/web/src/ag/normalMode.ts`: vim normal mode, j/k/i/e)                               |
+| File                                                  | Why                                                                                                                                                                                                         |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                                           | Pointer to this file (top lines)                                                                                                                                                                            |
+| `apps/web/src/components/Sidebar.tsx`                 | `SidebarThreadRow`: `useRevealActiveSidebarRow` wraps the row ref (`apps/web/src/ag/revealActiveSidebarRow.ts`) + its import                                                                                |
+| `apps/web/src/main.tsx`                               | `installNormalMode()` + its import (`apps/web/src/ag/normalMode.ts`: vim normal mode, j/k/i/e); `installSingleWorkspace()` + import (`ag/singleWorkspace.ts`)                                               |
+| `apps/web/src/components/Sidebar.tsx`                 | Single workspace hooks: `data-ag-row` (row body/head/title/meta), `data-ag-noise` (provider/env icons; hover-card project/env/model lines), `data-ag-quiet` (project label), class `ag-noise` (row favicon) |
+| `apps/web/src/components/settings/SettingsPanels.tsx` | `<SingleWorkspaceSetting />` at the top of Behavior + import                                                                                                                                                |
 
 ## Rules carried over from Ag
 
