@@ -47,7 +47,7 @@ What Ag had (ag-dash, tmux, Mac app) that this fork still needs. Check off when 
 
 ## Mac app
 
-- [ ] Own build, no auto-update
+- [x] Own build, no auto-update
 - [ ] ⌃⌘A show/hide
 - [ ] Both-⌘ quick entry
 - [ ] ⇧ + both-⌘: screenshot attached
