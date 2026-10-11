@@ -134,16 +134,51 @@ function undoSettle(): boolean {
   lastSettled = null;
   let handled = false;
   if (!undoNoticeButton()) {
+    handled = true;
     const unsettle = rowFor(last.item)?.querySelector<HTMLButtonElement>(
       'button[aria-label="Un-settle thread"]',
     );
-    if (!unsettle) return false;
-    unsettle.click();
-    handled = true;
+    if (unsettle) unsettle.click();
+    // A settled row usually isn't rendered (the Settled section is collapsed): open the session and use T3's own
+    // settle toggle (⌘E), which un-settles the session you're on.
+    else navigateToItem(last.item, () => pressSettleToggle());
   }
   // Either way (T3's notice handles it when up), go back to the session once its row is active again.
   setTimeout(() => openRow(last.item), 250);
   return handled;
+}
+
+/** Open a session by its sidebar item key ("env:thread"), whether or not its row is rendered. */
+function navigateToItem(item: string, then?: () => void) {
+  const [env, id] = item.split(":");
+  if (!env || !id) return;
+  const path = `/${env}/${id}`;
+  if (location.hash.startsWith("#/")) location.hash = `#${path}`;
+  else {
+    history.pushState(history.state, "", path);
+    dispatchEvent(new PopStateEvent("popstate", { state: history.state }));
+  }
+  let tries = 20;
+  const wait = () => {
+    if (currentRoutePath().endsWith(`/${id}`) && document.querySelector(COMPOSER))
+      return void setTimeout(() => then?.(), 300);
+    if (tries-- > 0) setTimeout(wait, 150);
+  };
+  wait();
+}
+
+function pressSettleToggle() {
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "e",
+      code: "KeyE",
+      metaKey: mac,
+      ctrlKey: !mac,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
 }
 
 /** u: the same as ⌘Z (undo the last settle, snooze, pin or archive). */
