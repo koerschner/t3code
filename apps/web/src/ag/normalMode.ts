@@ -19,6 +19,16 @@ const COMPOSER = '[data-testid="composer-editor"]';
 const asElement = (t: EventTarget | null) =>
   t && typeof (t as Element).closest === "function" ? (t as Element) : null;
 
+const isPlainPrintable = (event: KeyboardEvent) =>
+  !event.metaKey && !event.ctrlKey && !event.altKey && !event.isComposing && event.key.length === 1;
+
+function inNormalMode(event: KeyboardEvent, doc: Document = document): boolean {
+  const target = asElement(event.target);
+  if (target?.closest(EDITABLE) || target?.closest(TERMINAL)) return false;
+  if (doc.activeElement?.closest(EDITABLE) || doc.activeElement?.closest(TERMINAL)) return false;
+  return !doc.querySelector(FLOATING_LAYER);
+}
+
 export type NormalModeKey = "j" | "k" | "i" | "e";
 
 /** The normal-mode key this event means, or null when it should go where it normally would. */
@@ -64,7 +74,7 @@ function step(direction: 1 | -1) {
 }
 
 // Normal mode is the default everywhere: T3 focuses the prompt by itself (opening a thread, undo, shortcuts), which
-// would put every keystroke into it. Only a focus you asked for (i, a click or tap in the prompt, pasting, or typing)
+// would put every keystroke into it. Only a focus you asked for (i, a click or tap in the prompt, or pasting)
 // is allowed to stay; any other focus landing in the prompt is undone.
 let insertRequestedAt = 0;
 const requestInsert = () => {
@@ -159,7 +169,15 @@ export function installNormalMode(win: Window = window) {
         return;
       }
       const key = normalModeKey(event);
-      if (!key) return;
+      if (!key) {
+        // Letters do nothing in normal mode (no type-to-start): swallow plain printable keys outside text fields
+        // while a prompt is on screen, so T3 can't route them into it. Pages without a prompt keep their own keys.
+        if (isPlainPrintable(event) && inNormalMode(event) && document.querySelector(COMPOSER)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+        return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       if (!event.repeat || key === "j" || key === "k") ACTIONS[key]();
@@ -177,11 +195,8 @@ export function installNormalMode(win: Window = window) {
     "keydown",
     (event) => {
       // Everywhere defaults to normal mode: shortcuts, undo, switching or reopening sessions never leave the cursor in
-      // the prompt. Only explicit text entry asks for it: pasting (⌘V), or plain typing (T3's type-to-start, so a
-      // letter that isn't a normal-mode key begins a prompt).
-      const paste = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v";
-      const typing = !event.metaKey && !event.ctrlKey && !event.altKey && event.key.length === 1;
-      if (paste || typing) requestInsert();
+      // the prompt. Pasting (⌘V) is explicit text entry, so it may.
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") requestInsert();
     },
     { capture: true },
   );
