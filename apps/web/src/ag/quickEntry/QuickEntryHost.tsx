@@ -111,7 +111,7 @@ function QuickEntryHost() {
   const [selectedModelKey, setSelectedModelKey] = useState<string | null>(null);
 
   const navigate = useNavigate();
-  const { defaultProjectRef } = useHandleNewThread();
+  const { defaultProjectRef, activeThread } = useHandleNewThread();
   const projects = useProjects();
   const project = defaultProjectRef
     ? (projects.find(
@@ -137,14 +137,18 @@ function QuickEntryHost() {
       ).settings,
     [project, serverConfig],
   );
+  // Resolved like T3's new-thread button: the project's configured model, then the model of the thread open
+  // in the main window, then the composer's sticky model.
+  const defaultSelection =
+    projectSettings.defaultModelSelection ?? activeThread?.modelSelection ?? stickySelection;
   const modelOptions = useMemo(
     () =>
       quickEntryModelOptions({
         favorites,
         providers: serverConfig?.providers ?? [],
-        newThreadDefault: projectSettings.defaultModelSelection ?? stickySelection,
+        newThreadDefault: defaultSelection,
       }),
-    [favorites, projectSettings.defaultModelSelection, serverConfig, stickySelection],
+    [favorites, defaultSelection, serverConfig],
   );
   const selectedModel =
     modelOptions.find((option) => option.key === selectedModelKey) ?? modelOptions[0] ?? null;
@@ -212,8 +216,8 @@ function QuickEntryHost() {
       }
       const sent = draft;
       const selection: ModelSelection =
-        stickySelection && modelKey(stickySelection) === selectedModel.key
-          ? stickySelection
+        defaultSelection && modelKey(defaultSelection) === selectedModel.key
+          ? defaultSelection
           : selectedModel.selection;
       setDraft(EMPTY_DRAFT);
       setNotice(null);
@@ -296,7 +300,7 @@ function QuickEntryHost() {
       projectSettings.defaultRuntimeMode,
       selectedModel,
       startThreadTurn,
-      stickySelection,
+      defaultSelection,
     ],
   );
 

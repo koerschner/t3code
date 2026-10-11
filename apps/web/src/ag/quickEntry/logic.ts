@@ -77,8 +77,8 @@ function modelLabel(
 }
 
 /**
- * The models offered as chips, the first selected: the model a new thread would start on (resolved like
- * T3's new-thread button: the project's configured default, then the composer's sticky model), then the
+ * The models offered as chips, the first selected: the model a new thread would start on (resolved by the
+ * caller like T3's new-thread button), then the
  * user's favorites on enabled providers. With neither, the first favorite leads.
  */
 export function quickEntryModelOptions(input: {
@@ -107,7 +107,15 @@ export function quickEntryModelOptions(input: {
     if (!enabled.has(favorite.provider)) continue;
     add({ instanceId: favorite.provider, model: favorite.model });
   }
-  return options;
+  // The same model through two routes (e.g. anthropic/… and truefoundry/anthropic-primary/…) shares a
+  // name: tell them apart by the route, the slug's first segment.
+  return options.map((option) => {
+    const sameLabel = options.filter((other) => other.label === option.label).length > 1;
+    const route = option.selection.model.split("/")[0];
+    return sameLabel && route && route !== option.selection.model
+      ? { ...option, label: `${option.label} · ${route}` }
+      : option;
+  });
 }
 
 /** A thread title from the prompt, like the composer's (first line, trimmed). */

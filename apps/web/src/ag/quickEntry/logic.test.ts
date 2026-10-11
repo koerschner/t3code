@@ -79,6 +79,26 @@ describe("quickEntryModelOptions", () => {
     ]);
   });
 
+  it("tells the same model through two routes apart", () => {
+    const options = quickEntryModelOptions({
+      providers: [
+        provider(pi, true, [
+          { slug: "anthropic/claude-opus-5-5", name: "Claude Opus 5.5" },
+          { slug: "truefoundry/anthropic-primary/claude-opus-5-5", name: "Claude Opus 5.5" },
+        ]),
+      ],
+      newThreadDefault: {
+        instanceId: pi,
+        model: "truefoundry/anthropic-primary/claude-opus-5-5",
+      } as ModelSelection,
+      favorites: [{ provider: pi, model: "anthropic/claude-opus-5-5" }],
+    });
+    expect(options.map((option) => option.label)).toEqual([
+      "Claude Opus 5.5 · truefoundry",
+      "Claude Opus 5.5 · anthropic",
+    ]);
+  });
+
   it("falls back to the slug's last segment for unknown models", () => {
     const options = quickEntryModelOptions({
       providers,
