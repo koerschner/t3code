@@ -23,11 +23,6 @@ html[data-ag-single]
   display: none !important;
 }
 
-/* Composer: the model picker (switch models with its shortcut or the command palette). */
-html[data-ag-single] [data-chat-provider-model-picker] {
-  display: none !important;
-}
-
 /* Sidebar rows: two lines (title, then branch/diff/PR only when there is one) instead of three fixed ones.
    The status/actions slot floats over the title's right edge. */
 html[data-ag-single] li[data-thread-item] [data-ag-row="body"] {
