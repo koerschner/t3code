@@ -1,8 +1,9 @@
 // Ag fork (FORK.md): vim-style normal mode, app-wide. You're in normal mode whenever no text field, terminal,
-// dialog or menu has focus; Esc in the composer drops you into it. Keys:
+// dialog or menu has focus; Esc in the composer, or sending a prompt, drops you into it. Keys:
 //   j / k  next / previous session in the sidebar
 //   i      insert: focus the prompt
-//   e      settle the open session (⌘Z un-settles it and opens it again)
+//   e      settle the open session (⌘Z or u un-settles it and opens it again)
+//   u      undo (same as ⌘Z)
 // Works through the DOM (sidebar rows, the composer editor, the row's Settle button), so no upstream file needs
 // more than the one import that installs it.
 
@@ -29,7 +30,7 @@ function inNormalMode(event: KeyboardEvent, doc: Document = document): boolean {
   return !doc.querySelector(FLOATING_LAYER);
 }
 
-export type NormalModeKey = "j" | "k" | "i" | "e";
+export type NormalModeKey = "j" | "k" | "i" | "e" | "u";
 
 /** The normal-mode key this event means, or null when it should go where it normally would. */
 export function normalModeKey(
@@ -38,12 +39,12 @@ export function normalModeKey(
 ): NormalModeKey | null {
   if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.isComposing)
     return null;
-  if (event.key !== "j" && event.key !== "k" && event.key !== "i" && event.key !== "e") return null;
+  if (!["j", "k", "i", "e", "u"].includes(event.key)) return null;
   const target = asElement(event.target);
   if (target?.closest(EDITABLE) || target?.closest(TERMINAL)) return null;
   if (doc.activeElement?.closest(EDITABLE) || doc.activeElement?.closest(TERMINAL)) return null;
   if (doc.querySelector(FLOATING_LAYER)) return null;
-  return event.key;
+  return event.key as NormalModeKey;
 }
 
 /** Sidebar session rows in display order, and the index of the open one (-1 if none). */
@@ -120,25 +121,36 @@ function openRow(item: string, tries = 10) {
   if (tries > 0) setTimeout(() => openRow(item, tries - 1), 150);
 }
 
-/** ⌘Z after e: un-settle that session (T3's undo while its notice is up, else the row's Un-settle) and open it. */
-function undoSettle(event: KeyboardEvent): void {
-  const last = lastSettled;
-  if (!last || Date.now() - last.at > UNDO_WINDOW_MS) return;
-  lastSettled = null;
-  const notice = [...document.querySelectorAll('[role="status"] button')].some((b) =>
+const undoNoticeButton = () =>
+  [...document.querySelectorAll<HTMLElement>('[role="status"] button')].find((b) =>
     /undo/i.test(b.textContent ?? ""),
   );
-  if (!notice) {
+
+/** ⌘Z or u after e: un-settle that session (T3's undo while its notice is up, else the row's Un-settle) and open
+ * it again. Returns true when it did the un-settle itself, so T3's own ⌘Z handler must not also run. */
+function undoSettle(): boolean {
+  const last = lastSettled;
+  if (!last || Date.now() - last.at > UNDO_WINDOW_MS) return false;
+  lastSettled = null;
+  let handled = false;
+  if (!undoNoticeButton()) {
     const unsettle = rowFor(last.item)?.querySelector<HTMLButtonElement>(
       'button[aria-label="Un-settle thread"]',
     );
-    if (!unsettle) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
+    if (!unsettle) return false;
     unsettle.click();
+    handled = true;
   }
-  // Either way (T3 handles the key when its notice is up), go back to the session once its row is active again.
+  // Either way (T3's notice handles it when up), go back to the session once its row is active again.
   setTimeout(() => openRow(last.item), 250);
+  return handled;
+}
+
+/** u: the same as ⌘Z (undo the last settle, snooze, pin or archive). */
+function undo() {
+  const notice = undoNoticeButton();
+  if (undoSettle()) return;
+  notice?.click();
 }
 
 export const isUndoKey = (event: KeyboardEvent) =>
@@ -152,6 +164,7 @@ const ACTIONS: Record<NormalModeKey, () => void> = {
   k: () => step(-1),
   i: focusPrompt,
   e: settleOpen,
+  u: undo,
 };
 
 let installed = false;
@@ -164,8 +177,14 @@ export function installNormalMode(win: Window = window) {
     (event) => {
       if (isUndoKey(event) && !event.repeat) {
         const target = asElement(event.target);
-        if (!target?.closest(EDITABLE) && !document.activeElement?.closest(EDITABLE))
-          undoSettle(event);
+        if (
+          !target?.closest(EDITABLE) &&
+          !document.activeElement?.closest(EDITABLE) &&
+          undoSettle()
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
         return;
       }
       const key = normalModeKey(event);
@@ -184,6 +203,23 @@ export function installNormalMode(win: Window = window) {
     },
     { capture: true },
   );
+  // Sending a prompt (Enter, or the send button) puts you back in normal mode once the prompt has cleared.
+  const leaveAfterSend = () =>
+    setTimeout(() => {
+      const editor = document.querySelector(COMPOSER);
+      const active = document.activeElement as HTMLElement | null;
+      if (editor && (editor.textContent ?? "").trim() === "" && active?.closest(COMPOSER))
+        active.blur();
+    }, 200);
+  win.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    if (!asElement(event.target)?.closest(COMPOSER)) return;
+    if (document.querySelector("[data-composer-command-drawer]")) return;
+    leaveAfterSend();
+  });
+  win.addEventListener("click", (event) => {
+    if (asElement(event.target)?.closest('button[type="submit"]')) leaveAfterSend();
+  });
   win.addEventListener(
     "pointerdown",
     (event) => {
