@@ -49,11 +49,14 @@ the palette's word search (⌘K). It's DigUp's recipe (EmbeddingGemma 2 on llama
 `ag-deepsearch` service on the session host; the server route `/api/ag/deep-search` forwards to it. Threads open
 in place, Ag tabs open in ag-dash.
 
-**Lanes** (fork, server): before T3 takes a message Nathan sent, Ag's `lane` rules (ag-rules) can move it to the
-private Pi lane (`piPrivate`: his personal OpenRouter account, sessions outside Nessie). His `off-the-record` rule
-does it when he says "off the record": the message starts in that lane through T3's own lane switch (queued behind
-a running turn, never steered into it), so it never reaches a synced session. `apps/server/src/ag/lane.ts` loads
-ag-rules' engine from `~/ag`; any failure leaves the message unchanged.
+**Lanes** (fork, server): before T3 takes a message, Ag's `lane` rules (ag-rules) pick the Pi lane it runs in:
+`piPrivate` (Nathan's personal OpenRouter account, sessions outside Nessie) or `pi` (company TrueFoundry models,
+synced to Nessie). They run for every message Nathan sends and for the first message of every thread, whichever way
+it starts (the composer and quick entry launch threads, `ag-t3 new` creates them, agents launch them over MCP); when
+rules disagree, private wins. His `off-the-record` rule moves a thread private when he says "off the record", and
+`freetime-sync` can start every thread private and let Jev move FreeTime work to `pi`. The message starts in its lane
+through T3's own lane switch (queued behind a running turn, never steered into it). `apps/server/src/ag/lane.ts`
+loads ag-rules' engine from `~/ag`; a failure or a rule slower than 15 s leaves the selection unchanged.
 
 ## Surfaces
 
@@ -94,7 +97,7 @@ Upstream lands dozens of commits a day, and `ag/sync-upstream` merges them night
 | `apps/web/src/routes/__root.tsx`                          | `<AgQuickEntryHost />` beside `<SnapShotCoordinator />` + its import (`apps/web/src/ag/quickEntry`: the quick entry box)                                                                                    |
 | `apps/web/src/routes/__root.tsx`                          | `<AgDeepSearchHost />` after `<AgQuickEntryHost />` + its import (`apps/web/src/ag/deepSearch`: ⌥⌘K deep search)                                                                                            |
 | `apps/server/src/server.ts`                               | `layerAgDeepSearchRoute` in `layerMakeRoutes` + its import (`apps/server/src/ag/deepSearchRoute.ts`: proxies Ag's ag-deepsearch)                                                                            |
-| `apps/server/src/orchestration-v2/ThreadMessageIntake.ts` | `dispatchCommand`: parameter renamed `incoming`, first line `const command = yield* AgLane.routeLane(incoming)` + import (`apps/server/src/ag/lane.ts`: lanes, off the record)                              |
+| `apps/server/src/orchestration-v2/ThreadMessageIntake.ts` | `dispatchCommand` and `launchThread`: parameter renamed `incoming`, first line `AgLane.routeLane(incoming)` / `AgLane.routeLaunch(incoming)` + import (`apps/server/src/ag/lane.ts`: lanes)                 |
 | `apps/desktop/src/app/DesktopApp.ts`                      | `AgQuickEntry.start(environment.platform)` after `snapShot.initialize` + import (`apps/desktop/src/ag/QuickEntry.ts`: both-⌘ chord, screenshot, panel window)                                               |
 | `apps/desktop/src/window/DesktopWindow.ts`                | main window's `setWindowOpenHandler`: `quickEntryWindowOpenResponse(details)` first (`apps/desktop/src/ag/quickEntryWindow.ts`) + import                                                                    |
 | `apps/desktop/src/preload.ts`                             | `import "./ag/preload.ts"` (exposes `window.agDesktop.quickEntry`, quick entry's renderer → main IPC)                                                                                                       |
