@@ -84,6 +84,7 @@ import { getDesktopSnapShotBridge } from "../lib/desktopSnapShot";
 import { installDesktopPasteAsText } from "../lib/desktopPasteAsText";
 import { shouldResumeSnapShotSetupOnStartup } from "../lib/snapShotSetupResume";
 import { AgQuickEntryHost } from "../ag/quickEntry/QuickEntryHost";
+import { AgDeepSearchHost } from "../ag/deepSearch/DeepSearchHost";
 
 export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
@@ -237,6 +238,7 @@ function RootRouteView() {
           <SshPasswordPromptDialog />
           <SnapShotCoordinator />
           <AgQuickEntryHost />
+          <AgDeepSearchHost />
           <ThreadNotificationCoordinator />
           <ReopenClosedViewShortcut />
           <ConfirmDialogHost />
