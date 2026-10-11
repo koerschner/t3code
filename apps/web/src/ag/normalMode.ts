@@ -37,7 +37,13 @@ export function normalModeKey(
 }
 
 /** Sidebar session rows in display order, and the index of the open one (-1 if none). */
-export function sidebarRows(doc: Document = document, path = location.pathname) {
+// The desktop app uses hash history (#/env/thread); the web app uses the path.
+export function currentRoutePath(loc: Pick<Location, "hash" | "pathname"> = location): string {
+  const fromHash = loc.hash.startsWith("#/") ? loc.hash.slice(1) : "";
+  return (fromHash || loc.pathname).split(/[?#]/)[0] ?? "";
+}
+
+export function sidebarRows(doc: Document = document, path = currentRoutePath()) {
   const rows = [...doc.querySelectorAll<HTMLElement>("li[data-thread-item]")];
   const active = rows.findIndex((li) => {
     const [env, id] = (li.dataset.threadItem ?? "").split(":");

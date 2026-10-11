@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { normalModeKey, sidebarRows } from "./normalMode";
+import { currentRoutePath, normalModeKey, sidebarRows } from "./normalMode";
 
 type El = { closest: (s: string) => El | null };
 const plain: El = { closest: () => null };
@@ -47,5 +47,12 @@ describe("sidebarRows", () => {
     const d = doc({ rows: ["env:a", "env:b", "env:c"] });
     expect(sidebarRows(d, "/env/b").active).toBe(1);
     expect(sidebarRows(d, "/draft/x").active).toBe(-1);
+  });
+});
+
+describe("currentRoutePath", () => {
+  it("reads the desktop app's hash route and the web app's path", () => {
+    expect(currentRoutePath({ hash: "#/env/b?x=1", pathname: "/" })).toBe("/env/b");
+    expect(currentRoutePath({ hash: "", pathname: "/env/b" })).toBe("/env/b");
   });
 });
