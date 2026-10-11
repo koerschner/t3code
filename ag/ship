@@ -17,6 +17,10 @@
 # health-check, roll back on failure → push <rev> to origin/main (fast-forward only) → prune old builds.
 set -euo pipefail
 REPO=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+# Run from a worktree of this repo (e.g. ~/t3code-<topic>), ship that worktree's HEAD, not the main checkout's.
+common() { git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null; }
+top=$(git rev-parse --show-toplevel 2>/dev/null || true)
+[[ -n $top && $(common "$top") == "$(common "$REPO")" ]] && REPO=$top
 BUILDS=${T3_BUILDS:-$HOME/.local/share/t3-builds}
 LIVE=${T3_HOME:-$HOME/.t3}
 UNIT=ag-t3.service
