@@ -124,3 +124,35 @@ export function quickEntryTitleSeed(text: string, imageCount: number): string {
   if (firstLine) return firstLine;
   return imageCount > 0 ? "Image" : "New thread";
 }
+
+/**
+ * The model the user usually starts threads on in this project: the most common model among its most
+ * recently created threads (ties go to the more recent). A stray thread on another model doesn't move it.
+ */
+export function usualProjectModel(
+  shells: ReadonlyArray<{
+    readonly environmentId: string;
+    readonly projectId: string;
+    readonly createdAt: string;
+    readonly modelSelection: ModelSelection;
+  }>,
+  project: { readonly environmentId: string; readonly id: string },
+  sampleSize = 20,
+): ModelSelection | null {
+  const recent = shells
+    .filter(
+      (shell) => shell.environmentId === project.environmentId && shell.projectId === project.id,
+    )
+    .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, sampleSize);
+  const counts = new Map<string, { count: number; selection: ModelSelection }>();
+  for (const shell of recent) {
+    const key = modelKey(shell.modelSelection);
+    const entry = counts.get(key);
+    if (entry) entry.count += 1;
+    else counts.set(key, { count: 1, selection: shell.modelSelection });
+  }
+  let best: { count: number; selection: ModelSelection } | null = null;
+  for (const entry of counts.values()) if (!best || entry.count > best.count) best = entry;
+  return best?.selection ?? null;
+}

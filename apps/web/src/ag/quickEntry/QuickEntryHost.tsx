@@ -18,7 +18,7 @@ import {
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { truncate } from "@t3tools/shared/String";
 import { useAtomValue } from "@effect/atom-react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { ImageIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -29,16 +29,17 @@ import { useClientSettings } from "~/hooks/useSettings";
 import { useThreadActions } from "~/hooks/useThreadActions";
 import { cn, newMessageId, newThreadId } from "~/lib/utils";
 import { useComposerDraftStore } from "~/composerDraftStore";
-import { useProjects } from "~/state/entities";
+import { readThreadShell, readThreadShells, useProjects } from "~/state/entities";
 import { environmentServerConfigsAtom } from "~/state/server";
 import { threadEnvironment } from "~/state/threads";
 import { useOrchestrationCommand } from "~/state/use-orchestration-command";
-import { buildThreadRouteParams } from "~/threadRoutes";
+import { buildThreadRouteParams, resolveThreadRouteTarget } from "~/threadRoutes";
 import {
   modelKey,
   parseQuickEntryAction,
   quickEntryModelOptions,
   quickEntryTitleSeed,
+  usualProjectModel,
   type QuickEntryShot,
 } from "./logic";
 import { openQuickEntryPopup, type QuickEntryPopup } from "./popupDocument";
@@ -111,7 +112,11 @@ function QuickEntryHost() {
   const [selectedModelKey, setSelectedModelKey] = useState<string | null>(null);
 
   const navigate = useNavigate();
-  const { defaultProjectRef, activeThread } = useHandleNewThread();
+  const { defaultProjectRef } = useHandleNewThread();
+  const router = useRouter();
+  // The model of the thread open in the main window, read when the box opens (this host sits in the root
+  // route, where route params are empty, so it reads the router's deepest match).
+  const [openThreadSelection, setOpenThreadSelection] = useState<ModelSelection | null>(null);
   const projects = useProjects();
   const project = defaultProjectRef
     ? (projects.find(
@@ -137,10 +142,14 @@ function QuickEntryHost() {
       ).settings,
     [project, serverConfig],
   );
-  // Resolved like T3's new-thread button: the project's configured model, then the model of the thread open
-  // in the main window, then the composer's sticky model.
+  // The project's configured model, then the thread open in the main window, then the model the user usually
+  // starts threads on here, then the composer's sticky model (last: it can lag behind, e.g. a model whose
+  // login has since expired).
   const defaultSelection =
-    projectSettings.defaultModelSelection ?? activeThread?.modelSelection ?? stickySelection;
+    projectSettings.defaultModelSelection ??
+    openThreadSelection ??
+    (project ? usualProjectModel(readThreadShells(), project) : null) ??
+    stickySelection;
   const modelOptions = useMemo(
     () =>
       quickEntryModelOptions({
@@ -158,35 +167,44 @@ function QuickEntryHost() {
   });
   const { pinThread } = useThreadActions();
 
-  const open = useCallback((shot: QuickEntryShot | null, shotError: string | null) => {
-    let current = popupRef.current;
-    if (!current || current.window.closed) {
-      current?.dispose();
-      current = openQuickEntryPopup();
-      popupRef.current = current;
-      setPopup(current);
-    }
-    if (shot) {
-      setDraft((previous) => ({
-        ...previous,
-        // A new screenshot replaces an unsent one; pasted images stay.
-        images: [
-          ...previous.images.filter((image) => !image.shot),
-          {
-            id: newMessageId(),
-            dataUrl: shot.dataUrl,
-            name: screenshotName(shot),
-            mimeType: "image/png",
-            sizeBytes: dataUrlBytes(shot.dataUrl),
-            shot,
-          },
-        ],
-      }));
-    }
-    setNotice(shotError);
-    setSelectedModelKey(null);
-    setOpenCount((count) => count + 1);
-  }, []);
+  const open = useCallback(
+    (shot: QuickEntryShot | null, shotError: string | null) => {
+      let current = popupRef.current;
+      if (!current || current.window.closed) {
+        current?.dispose();
+        current = openQuickEntryPopup();
+        popupRef.current = current;
+        setPopup(current);
+      }
+      if (shot) {
+        setDraft((previous) => ({
+          ...previous,
+          // A new screenshot replaces an unsent one; pasted images stay.
+          images: [
+            ...previous.images.filter((image) => !image.shot),
+            {
+              id: newMessageId(),
+              dataUrl: shot.dataUrl,
+              name: screenshotName(shot),
+              mimeType: "image/png",
+              sizeBytes: dataUrlBytes(shot.dataUrl),
+              shot,
+            },
+          ],
+        }));
+      }
+      setNotice(shotError);
+      setSelectedModelKey(null);
+      const target = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
+      setOpenThreadSelection(
+        target?.kind === "server"
+          ? (readThreadShell(target.threadRef)?.modelSelection ?? null)
+          : null,
+      );
+      setOpenCount((count) => count + 1);
+    },
+    [router],
+  );
 
   useEffect(() => {
     const unsubscribe = window.desktopBridge?.onMenuAction((action) => {
@@ -280,7 +298,6 @@ function QuickEntryHost() {
         agDesktop?.quickEntry({ type: "show" });
         return;
       }
-      useComposerDraftStore.getState().setStickyModelSelection(selection);
       const threadRef = scopeThreadRef(project.environmentId, threadId);
       if (intent === "pin") void pinThread(threadRef);
       if (intent === "open") {

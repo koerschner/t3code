@@ -1,7 +1,12 @@
 import type { ModelSelection, ProviderInstanceId, ServerProvider } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { parseQuickEntryAction, quickEntryModelOptions, quickEntryTitleSeed } from "./logic";
+import {
+  parseQuickEntryAction,
+  quickEntryModelOptions,
+  quickEntryTitleSeed,
+  usualProjectModel,
+} from "./logic";
 
 const pi = "pi" as ProviderInstanceId;
 const codex = "codex" as ProviderInstanceId;
@@ -114,5 +119,27 @@ describe("quickEntryTitleSeed", () => {
     expect(quickEntryTitleSeed("  fix the build\nand more ", 0)).toBe("fix the build");
     expect(quickEntryTitleSeed("", 1)).toBe("Image");
     expect(quickEntryTitleSeed("", 0)).toBe("New thread");
+  });
+});
+
+describe("usualProjectModel", () => {
+  const shell = (model: string, createdAt: string, projectId = "p") => ({
+    environmentId: "e",
+    projectId,
+    createdAt,
+    modelSelection: { instanceId: pi, model } as ModelSelection,
+  });
+
+  it("takes the most common recent model, so a stray newest thread doesn't win", () => {
+    const shells = [
+      shell("truefoundry/opus", "2026-10-11T01:00:00Z"),
+      shell("truefoundry/opus", "2026-10-11T02:00:00Z"),
+      shell("anthropic/opus", "2026-10-11T03:00:00Z"),
+      shell("other", "2026-10-11T04:00:00Z", "q"),
+    ];
+    expect(usualProjectModel(shells, { environmentId: "e", id: "p" })?.model).toBe(
+      "truefoundry/opus",
+    );
+    expect(usualProjectModel([], { environmentId: "e", id: "p" })).toBeNull();
   });
 });
