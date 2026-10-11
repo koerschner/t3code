@@ -36,6 +36,19 @@ import {
 const ACTION_PREFIX = "ag.quickEntry:";
 const MAX_HEIGHT = 640;
 const CAPTURE_MAX_SIZE = { width: 2_560, height: 1_600 };
+// What it did, for debugging over SSH: ~/.t3/userdata/logs/quick-entry.log (kept small). `kill -USR1 <pid>`
+// also writes the box as it looks right now to quick-entry.png beside it.
+const LOG_DIR = NodePath.join(NodeOS.homedir(), ".t3", "userdata", "logs");
+const LOG_FILE = NodePath.join(LOG_DIR, "quick-entry.log");
+function log(message: string) {
+  void (async () => {
+    try {
+      const stat = await NodeFSP.stat(LOG_FILE).catch(() => null);
+      if (stat && stat.size > 256 * 1024) await NodeFSP.rename(LOG_FILE, `${LOG_FILE}.1`);
+      await NodeFSP.appendFile(LOG_FILE, `${new Date().toISOString()} ${message}\n`);
+    } catch {}
+  })();
+}
 
 // CGEventFlags: device-dependent left/right Command bits, and the device-independent masks.
 const LEFT_COMMAND = 0x8;
@@ -212,6 +225,7 @@ function install(options: { readonly ensureMain: () => Promise<Electron.BrowserW
 
   const sendAction = (action: string) => {
     if (!mainContents || mainContents.isDestroyed() || !rendererReady) {
+      log("renderer not ready: open queued");
       pendingAction = action;
       return;
     }
@@ -234,6 +248,7 @@ function install(options: { readonly ensureMain: () => Promise<Electron.BrowserW
       if (details.frameName !== AG_QUICK_ENTRY_FRAME_NAME) return;
       if (panel && !panel.isDestroyed() && panel !== popup) panel.destroy();
       panel = popup;
+      log("popup created");
       popup.setAlwaysOnTop(true, "floating");
       // skipTransformProcessType: otherwise Electron hides the app from the Dock and ⌘Tab.
       popup.setVisibleOnAllWorkspaces(true, {
@@ -254,6 +269,9 @@ function install(options: { readonly ensureMain: () => Promise<Electron.BrowserW
   };
 
   const open = async (withShot: boolean) => {
+    log(
+      `chord${withShot ? " with shot" : ""}; panel ${panel && !panel.isDestroyed() ? (panel.isVisible() ? "visible" : "hidden") : "none"}`,
+    );
     if (panel && !panel.isDestroyed() && panel.isVisible()) {
       hidePanel(); // the chord again closes it
       return;
@@ -262,6 +280,7 @@ function install(options: { readonly ensureMain: () => Promise<Electron.BrowserW
     adoptMain(main);
     returnToMain = main.isFocused();
     const payload: QuickEntryOpenPayload = withShot ? await captureFrontWindow() : {};
+    if (payload.shotError) log(payload.shotError);
     opening = true;
     sendAction(`${ACTION_PREFIX}${JSON.stringify(payload)}`);
     // Once created, the popup is reused: show it now (the renderer has already cleared it).
@@ -274,7 +293,7 @@ function install(options: { readonly ensureMain: () => Promise<Electron.BrowserW
     if (busy) return;
     busy = true;
     open(withShot)
-      .catch(() => {})
+      .catch((error: unknown) => log(`open failed: ${String(error)}`))
       .finally(() => {
         busy = false;
       });
@@ -289,6 +308,7 @@ function install(options: { readonly ensureMain: () => Promise<Electron.BrowserW
       if (window) adoptMain(window);
     }
     if (!mainContents || event.sender !== mainContents) return;
+    if (message.type !== "resize") log(`renderer: ${message.type}`);
     switch (message.type) {
       case "ready":
         rendererReady = true;
@@ -336,6 +356,16 @@ function install(options: { readonly ensureMain: () => Promise<Electron.BrowserW
   Electron.app.on("will-quit", stop);
   // `kill -USR2 <pid>` opens it without the chord (handy over SSH).
   process.on("SIGUSR2", () => trigger(false));
+  process.on("SIGUSR1", () => {
+    if (!panel || panel.isDestroyed()) return log("capture: no panel");
+    void panel.webContents
+      .capturePage()
+      .then((image) => NodeFSP.writeFile(NodePath.join(LOG_DIR, "quick-entry.png"), image.toPNG()))
+      .then(() =>
+        log(`capture: ${JSON.stringify(panel?.getBounds())} visible=${panel?.isVisible()}`),
+      )
+      .catch((error: unknown) => log(`capture failed: ${String(error)}`));
+  });
 }
 
 /** Starts quick entry on macOS; elsewhere a no-op. Hooked into DesktopApp's bootstrap. */
