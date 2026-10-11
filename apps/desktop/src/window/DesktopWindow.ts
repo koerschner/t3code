@@ -33,6 +33,7 @@ import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
 import { makeQuitShortcutHandler } from "./QuitHold.ts";
+import { quickEntryWindowOpenResponse } from "../ag/quickEntryWindow.ts";
 
 const TITLEBAR_HEIGHT = 40;
 // Matches --workspace-topbar-height in apps/web/src/index.css. Native macOS
@@ -626,7 +627,10 @@ export const make = Effect.gen(function* () {
       void runPromise(previewManager.prepareWebview(contents));
     });
 
-    window.webContents.setWindowOpenHandler(({ url }) => {
+    window.webContents.setWindowOpenHandler((details) => {
+      const agQuickEntry = quickEntryWindowOpenResponse(details);
+      if (agQuickEntry) return agQuickEntry;
+      const { url } = details;
       if (Option.isSome(ElectronShell.parseSafeExternalUrl(url))) {
         void runPromise(electronShell.openExternal(url));
       }
