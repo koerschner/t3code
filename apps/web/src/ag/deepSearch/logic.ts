@@ -70,13 +70,13 @@ export function parseDeepSearchResponse(body: unknown): DeepSearchResponse {
 const runtime = ManagedRuntime.make(PrimaryEnvironmentHttpLayer.layer.pipe(Layer.orDie));
 
 export function fetchDeepSearch(query: string, signal: AbortSignal): Promise<DeepSearchResponse> {
-  const url = resolvePrimaryEnvironmentHttpUrl(
-    `/api/ag/deep-search?${new URLSearchParams({ q: query, limit: "30" }).toString()}`,
-  );
+  // The resolver escapes "?" in its path argument, so the query goes on afterwards.
+  const url = new URL(resolvePrimaryEnvironmentHttpUrl("/api/ag/deep-search"));
+  url.search = new URLSearchParams({ q: query, limit: "30" }).toString();
   return runtime.runPromise(
     Effect.gen(function* () {
       const client = yield* HttpClient.HttpClient;
-      const response = yield* client.get(url);
+      const response = yield* client.get(url.toString());
       const body = yield* response.json;
       if (response.status === 503) return parseDeepSearchResponse(body);
       yield* HttpClientResponse.filterStatusOk(response);
