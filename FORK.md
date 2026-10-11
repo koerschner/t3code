@@ -49,6 +49,12 @@ the palette's word search (⌘K). It's DigUp's recipe (EmbeddingGemma 2 on llama
 `ag-deepsearch` service on the session host; the server route `/api/ag/deep-search` forwards to it. Threads open
 in place, Ag tabs open in ag-dash.
 
+**Lanes** (fork, server): before T3 takes a message Nathan sent, Ag's `lane` rules (ag-rules) can move it to the
+private Pi lane (`piPrivate`: his personal OpenRouter account, sessions outside Nessie). His `off-the-record` rule
+does it when he says "off the record": the message starts in that lane through T3's own lane switch (queued behind
+a running turn, never steered into it), so it never reaches a synced session. `apps/server/src/ag/lane.ts` loads
+ag-rules' engine from `~/ag`; any failure leaves the message unchanged.
+
 ## Surfaces
 
 | Surface                                                     | Gets fork changes                                                                                     |
@@ -78,19 +84,20 @@ Upstream lands dozens of commits a day, and `ag/sync-upstream` merges them night
 
 ## Patch surface (every upstream file the fork touches)
 
-| File                                                  | Why                                                                                                                                                                                                         |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AGENTS.md`                                           | Pointer to this file (top lines)                                                                                                                                                                            |
-| `apps/web/src/components/Sidebar.tsx`                 | `SidebarThreadRow`: `useRevealActiveSidebarRow` wraps the row ref (`apps/web/src/ag/revealActiveSidebarRow.ts`) + its import                                                                                |
-| `apps/web/src/main.tsx`                               | `installNormalMode()` + its import (`apps/web/src/ag/normalMode.ts`: vim normal mode, j/k/i/e); `installSingleWorkspace()` + import (`ag/singleWorkspace.ts`)                                               |
-| `apps/web/src/components/Sidebar.tsx`                 | Single workspace hooks: `data-ag-row` (row body/head/title/meta), `data-ag-noise` (provider/env icons; hover-card project/env/model lines), `data-ag-quiet` (project label), class `ag-noise` (row favicon) |
-| `apps/web/src/components/settings/SettingsPanels.tsx` | `<SingleWorkspaceSetting />` at the top of Behavior + import                                                                                                                                                |
-| `apps/web/src/routes/__root.tsx`                      | `<AgQuickEntryHost />` beside `<SnapShotCoordinator />` + its import (`apps/web/src/ag/quickEntry`: the quick entry box)                                                                                    |
-| `apps/web/src/routes/__root.tsx`                      | `<AgDeepSearchHost />` after `<AgQuickEntryHost />` + its import (`apps/web/src/ag/deepSearch`: ⌥⌘K deep search)                                                                                            |
-| `apps/server/src/server.ts`                           | `layerAgDeepSearchRoute` in `layerMakeRoutes` + its import (`apps/server/src/ag/deepSearchRoute.ts`: proxies Ag's ag-deepsearch)                                                                            |
-| `apps/desktop/src/app/DesktopApp.ts`                  | `AgQuickEntry.start(environment.platform)` after `snapShot.initialize` + import (`apps/desktop/src/ag/QuickEntry.ts`: both-⌘ chord, screenshot, panel window)                                               |
-| `apps/desktop/src/window/DesktopWindow.ts`            | main window's `setWindowOpenHandler`: `quickEntryWindowOpenResponse(details)` first (`apps/desktop/src/ag/quickEntryWindow.ts`) + import                                                                    |
-| `apps/desktop/src/preload.ts`                         | `import "./ag/preload.ts"` (exposes `window.agDesktop.quickEntry`, quick entry's renderer → main IPC)                                                                                                       |
+| File                                                      | Why                                                                                                                                                                                                         |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                                               | Pointer to this file (top lines)                                                                                                                                                                            |
+| `apps/web/src/components/Sidebar.tsx`                     | `SidebarThreadRow`: `useRevealActiveSidebarRow` wraps the row ref (`apps/web/src/ag/revealActiveSidebarRow.ts`) + its import                                                                                |
+| `apps/web/src/main.tsx`                                   | `installNormalMode()` + its import (`apps/web/src/ag/normalMode.ts`: vim normal mode, j/k/i/e); `installSingleWorkspace()` + import (`ag/singleWorkspace.ts`)                                               |
+| `apps/web/src/components/Sidebar.tsx`                     | Single workspace hooks: `data-ag-row` (row body/head/title/meta), `data-ag-noise` (provider/env icons; hover-card project/env/model lines), `data-ag-quiet` (project label), class `ag-noise` (row favicon) |
+| `apps/web/src/components/settings/SettingsPanels.tsx`     | `<SingleWorkspaceSetting />` at the top of Behavior + import                                                                                                                                                |
+| `apps/web/src/routes/__root.tsx`                          | `<AgQuickEntryHost />` beside `<SnapShotCoordinator />` + its import (`apps/web/src/ag/quickEntry`: the quick entry box)                                                                                    |
+| `apps/web/src/routes/__root.tsx`                          | `<AgDeepSearchHost />` after `<AgQuickEntryHost />` + its import (`apps/web/src/ag/deepSearch`: ⌥⌘K deep search)                                                                                            |
+| `apps/server/src/server.ts`                               | `layerAgDeepSearchRoute` in `layerMakeRoutes` + its import (`apps/server/src/ag/deepSearchRoute.ts`: proxies Ag's ag-deepsearch)                                                                            |
+| `apps/server/src/orchestration-v2/ThreadMessageIntake.ts` | `dispatchCommand`: parameter renamed `incoming`, first line `const command = yield* AgLane.routeLane(incoming)` + import (`apps/server/src/ag/lane.ts`: lanes, off the record)                              |
+| `apps/desktop/src/app/DesktopApp.ts`                      | `AgQuickEntry.start(environment.platform)` after `snapShot.initialize` + import (`apps/desktop/src/ag/QuickEntry.ts`: both-⌘ chord, screenshot, panel window)                                               |
+| `apps/desktop/src/window/DesktopWindow.ts`                | main window's `setWindowOpenHandler`: `quickEntryWindowOpenResponse(details)` first (`apps/desktop/src/ag/quickEntryWindow.ts`) + import                                                                    |
+| `apps/desktop/src/preload.ts`                             | `import "./ag/preload.ts"` (exposes `window.agDesktop.quickEntry`, quick entry's renderer → main IPC)                                                                                                       |
 
 ## Rules carried over from Ag
 
