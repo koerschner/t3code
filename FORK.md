@@ -29,7 +29,8 @@ Other commands: `ag/ship --status`, `ag/ship --rollback`, `ag/sync-upstream`, `a
 ## The Mac app
 
 `ag/build-mac` builds upstream's Electron app (`apps/desktop`) from a fork commit on ag-mac and installs it on the
-client Mac as `/Applications/T3 Code (Ag).app`, without patching any upstream file: in its clean build worktree it
+client Mac as `/Applications/T3 Code (Ag).app` (and on ag-mac itself, paired to the same server, so agents
+test the app on ag-mac's screen, never the client's), without patching any upstream file: in its clean build worktree it
 stamps the product name and a non-nightly version (`<core>-ag.<date>.g<sha>`), so upstream's build script gives
 it no update feed and it never replaces itself with upstream's build. It shares upstream's profile (`t3code-v2`),
 so it's used _instead of_ T3 Code (Nightly), which is retired to `/Applications/Retired/`. For fast UI iteration,

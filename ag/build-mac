@@ -72,7 +72,15 @@ running=$(ssh "$CLIENT" "$proc | head -1")
 tar -C "$(dirname "$BUNDLE")" -cf - "$APP.app" | ssh "$CLIENT" "set -e; rm -rf '/tmp/$APP.app'; tar -C /tmp -xf -; xattr -cr '/tmp/$APP.app'; rm -rf '/Applications/$APP.app'; mv '/tmp/$APP.app' /Applications/"
 [[ -n $running ]] && ssh "$CLIENT" "open -g '/Applications/$APP.app'"
 
+# Also install it here on ag-mac, paired to the same server, so agents test the Mac app (quick entry, windows,
+# screenshots) on ag-mac's own screen instead of driving the client's desktop.
+say "install on ag-mac"
+running_here=$(eval "$proc" | head -1)
+[[ -n $running_here ]] && { osascript -e "quit app \"$APP\""; sleep 4; eval "$proc" | awk '{print $1}' | xargs kill 2>/dev/null || true; }
+rm -rf "/Applications/$APP.app" && ditto "$BUNDLE" "/Applications/$APP.app" && xattr -cr "/Applications/$APP.app"
+[[ -n $running_here ]] && open -g "/Applications/$APP.app"
+
 cd "$BUILDS"; ls -1t | grep -vE '^(build\.jsonl|\.lock)$' | tail -n +3 | while read -r old; do git -C "$REPO" worktree remove --force "$BUILDS/$old" 2>/dev/null || rm -rf "${BUILDS:?}/$old"; done
 git -C "$REPO" worktree prune
 record ok "$VERSION"
-echo "installed $APP $VERSION on $CLIENT"
+echo "installed $APP $VERSION on $CLIENT and ag-mac"
