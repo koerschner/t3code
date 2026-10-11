@@ -63,9 +63,9 @@ function step(direction: 1 | -1) {
   rowButton(rows[next])?.click();
 }
 
-// Normal mode is the default: T3 focuses the prompt by itself whenever a thread opens, which would put every
-// keystroke into it. Only a focus you asked for (i, a click or tap in the prompt, or a key you just pressed with
-// a modifier, e.g. a shortcut) is allowed to stay; any other focus landing in the prompt is undone.
+// Normal mode is the default everywhere: T3 focuses the prompt by itself (opening a thread, undo, shortcuts), which
+// would put every keystroke into it. Only a focus you asked for (i, a click or tap in the prompt, pasting, or typing)
+// is allowed to stay; any other focus landing in the prompt is undone.
 let insertRequestedAt = 0;
 const requestInsert = () => {
   insertRequestedAt = Date.now();
@@ -176,9 +176,12 @@ export function installNormalMode(win: Window = window) {
   win.addEventListener(
     "keydown",
     (event) => {
-      // Shortcuts that focus the prompt (modifier chords) and typing into it while already there count as asking.
-      // Other printable keys keep T3's type-to-start: they begin a prompt, so they count too.
-      if (event.metaKey || event.ctrlKey || event.altKey || event.key.length === 1) requestInsert();
+      // Everywhere defaults to normal mode: shortcuts, undo, switching or reopening sessions never leave the cursor in
+      // the prompt. Only explicit text entry asks for it: pasting (⌘V), or plain typing (T3's type-to-start, so a
+      // letter that isn't a normal-mode key begins a prompt).
+      const paste = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v";
+      const typing = !event.metaKey && !event.ctrlKey && !event.altKey && event.key.length === 1;
+      if (paste || typing) requestInsert();
     },
     { capture: true },
   );
