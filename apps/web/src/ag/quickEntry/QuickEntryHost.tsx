@@ -71,9 +71,20 @@ const EMPTY_DRAFT: Draft = { text: "", images: [] };
 
 type SendIntent = "send" | "pin" | "open";
 
+/**
+ * The server keeps only an attachment's name (not its SnapShot source), so the name says what was
+ * captured: "Screenshot of Safari — Page title.png".
+ */
+function screenshotName(shot: QuickEntryShot): string {
+  const what = shot.windowTitle ? `${shot.appName} — ${shot.windowTitle}` : shot.appName;
+  return `Screenshot of ${what.replaceAll(/[/\\:]/g, "-").slice(0, 200)}.png`;
+}
+
+/** Decoded size of a base64 data URL (the server checks it against the payload exactly). */
 function dataUrlBytes(dataUrl: string): number {
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-  return Math.floor((base64.length * 3) / 4);
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return (base64.length * 3) / 4 - padding;
 }
 
 function readFileAsDataUrl(file: Blob): Promise<string> {
@@ -160,7 +171,7 @@ function QuickEntryHost() {
           {
             id: newMessageId(),
             dataUrl: shot.dataUrl,
-            name: `${shot.appName}.png`,
+            name: screenshotName(shot),
             mimeType: "image/png",
             sizeBytes: dataUrlBytes(shot.dataUrl),
             shot,
