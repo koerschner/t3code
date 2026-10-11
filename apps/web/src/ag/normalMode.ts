@@ -2,7 +2,7 @@
 // dialog or menu has focus; Esc in the composer drops you into it. Keys:
 //   j / k  next / previous session in the sidebar
 //   i      insert: focus the prompt
-//   e      settle the open session
+//   e      settle the open session (⌘Z un-settles it and opens it again)
 // Works through the DOM (sidebar rows, the composer editor, the row's Settle button), so no upstream file needs
 // more than the one import that installs it.
 
@@ -85,10 +85,57 @@ function focusPrompt() {
   }
 }
 
+// The last session settled with e, so ⌘Z can bring it back: T3's own undo only lasts 5 seconds and, because
+// settling moves you to the next session, leaves you looking at a different one.
+let lastSettled: { item: string; at: number } | null = null;
+const UNDO_WINDOW_MS = 10 * 60_000;
+
 function settleOpen() {
   const { rows, active } = sidebarRows();
-  rows[active]?.querySelector<HTMLButtonElement>('button[aria-label="Settle thread"]')?.click();
+  const row = rows[active];
+  const button = row?.querySelector<HTMLButtonElement>('button[aria-label="Settle thread"]');
+  if (!row || !button) return;
+  lastSettled = { item: row.dataset.threadItem ?? "", at: Date.now() };
+  button.click();
 }
+
+const rowFor = (item: string) =>
+  [...document.querySelectorAll<HTMLElement>("li[data-thread-item]")].find(
+    (li) => li.dataset.threadItem === item,
+  );
+
+function openRow(item: string, tries = 10) {
+  const button = rowButton(rowFor(item));
+  if (button) return button.click();
+  if (tries > 0) setTimeout(() => openRow(item, tries - 1), 150);
+}
+
+/** ⌘Z after e: un-settle that session (T3's undo while its notice is up, else the row's Un-settle) and open it. */
+function undoSettle(event: KeyboardEvent): void {
+  const last = lastSettled;
+  if (!last || Date.now() - last.at > UNDO_WINDOW_MS) return;
+  lastSettled = null;
+  const notice = [...document.querySelectorAll('[role="status"] button')].some((b) =>
+    /undo/i.test(b.textContent ?? ""),
+  );
+  if (!notice) {
+    const unsettle = rowFor(last.item)?.querySelector<HTMLButtonElement>(
+      'button[aria-label="Un-settle thread"]',
+    );
+    if (!unsettle) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    unsettle.click();
+  }
+  // Either way (T3 handles the key when its notice is up), go back to the session once its row is active again.
+  setTimeout(() => openRow(last.item), 250);
+}
+
+export const isUndoKey = (event: KeyboardEvent) =>
+  (event.metaKey || event.ctrlKey) &&
+  !event.shiftKey &&
+  !event.altKey &&
+  event.key.toLowerCase() === "z";
 
 const ACTIONS: Record<NormalModeKey, () => void> = {
   j: () => step(1),
@@ -105,6 +152,12 @@ export function installNormalMode(win: Window = window) {
   win.addEventListener(
     "keydown",
     (event) => {
+      if (isUndoKey(event) && !event.repeat) {
+        const target = asElement(event.target);
+        if (!target?.closest(EDITABLE) && !document.activeElement?.closest(EDITABLE))
+          undoSettle(event);
+        return;
+      }
       const key = normalModeKey(event);
       if (!key) return;
       event.preventDefault();
