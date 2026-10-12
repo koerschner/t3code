@@ -4,8 +4,11 @@
 //   i      insert: focus the prompt
 //   e      settle the open session (⌘Z or u un-settles it and opens it again)
 //   u      undo (same as ⌘Z)
+//   /      search sessions (opens the command palette's thread search)
 // Works through the DOM (sidebar rows, the composer editor, the row's Settle button), so no upstream file needs
 // more than the one import that installs it.
+
+import { openCommandPalette } from "~/commandPaletteBus";
 
 const EDITABLE =
   'input,textarea,select,[contenteditable="true"],[contenteditable="plaintext-only"],[role="textbox"]';
@@ -30,7 +33,7 @@ function inNormalMode(event: KeyboardEvent, doc: Document = document): boolean {
   return !doc.querySelector(FLOATING_LAYER);
 }
 
-export type NormalModeKey = "j" | "k" | "i" | "e" | "u";
+export type NormalModeKey = "j" | "k" | "i" | "e" | "u" | "/";
 
 /** The normal-mode key this event means, or null when it should go where it normally would. */
 export function normalModeKey(
@@ -39,7 +42,7 @@ export function normalModeKey(
 ): NormalModeKey | null {
   if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.isComposing)
     return null;
-  if (!["j", "k", "i", "e", "u"].includes(event.key)) return null;
+  if (!["j", "k", "i", "e", "u", "/"].includes(event.key)) return null;
   const target = asElement(event.target);
   if (target?.closest(EDITABLE) || target?.closest(TERMINAL)) return null;
   if (doc.activeElement?.closest(EDITABLE) || doc.activeElement?.closest(TERMINAL)) return null;
@@ -200,6 +203,7 @@ const ACTIONS: Record<NormalModeKey, () => void> = {
   i: focusPrompt,
   e: settleOpen,
   u: undo,
+  "/": () => openCommandPalette({ query: "" }),
 };
 
 let installed = false;

@@ -27,8 +27,8 @@ function key(k: string, extra: Partial<KeyboardEvent> = {}, target: El = plain) 
 }
 
 describe("normalModeKey", () => {
-  it("maps j k i e outside text fields", () => {
-    for (const k of ["j", "k", "i", "e", "u"]) expect(normalModeKey(key(k), doc())).toBe(k);
+  it("maps j k i e u / outside text fields", () => {
+    for (const k of ["j", "k", "i", "e", "u", "/"]) expect(normalModeKey(key(k), doc())).toBe(k);
   });
   it("lets other keys and modified keys through", () => {
     expect(normalModeKey(key("x"), doc())).toBeNull();
@@ -39,6 +39,7 @@ describe("normalModeKey", () => {
     expect(normalModeKey(key("j", {}, editable), doc())).toBeNull();
     expect(normalModeKey(key("j"), doc({ active: editable }))).toBeNull();
     expect(normalModeKey(key("j"), doc({ floating: true }))).toBeNull();
+    expect(normalModeKey(key("/", {}, editable), doc())).toBeNull();
   });
 });
 
