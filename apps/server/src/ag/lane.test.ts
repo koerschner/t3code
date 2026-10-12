@@ -9,7 +9,14 @@ import {
 import { createModelSelection } from "@t3tools/shared/model";
 import * as Effect from "effect/Effect";
 
-import { applyLane, LANES, type LaneInput, laneVerdict, moveSelection } from "./lane.ts";
+import {
+  applyLane,
+  DEFAULT_MODEL,
+  LANES,
+  type LaneInput,
+  laneVerdict,
+  moveSelection,
+} from "./lane.ts";
 
 type MessageDispatch = Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }>;
 
@@ -18,9 +25,19 @@ const synced = createModelSelection(
   "truefoundry/anthropic-primary/claude-opus-5-5",
   [{ id: "thinking", value: "max" }],
 );
+const syncedGpt = createModelSelection(
+  ProviderInstanceId.make("pi"),
+  "truefoundry-openai/gpt-6-astra",
+  [{ id: "reasoningEffort", value: "high" }],
+);
 const privateGpt = createModelSelection(
   ProviderInstanceId.make("piPrivate"),
-  "openrouter/openai/gpt-6-astra",
+  "truefoundry-openai/gpt-6-astra",
+);
+const privateOpenRouter = createModelSelection(
+  ProviderInstanceId.make("piPrivate"),
+  "openrouter/anthropic/claude-opus-5.5",
+  [{ id: "thinking", value: "high" }],
 );
 const codex = createModelSelection(ProviderInstanceId.make("codex"), "gpt-6-astra");
 const message = (overrides: Partial<MessageDispatch> = {}): MessageDispatch => ({
@@ -36,15 +53,32 @@ const message = (overrides: Partial<MessageDispatch> = {}): MessageDispatch => (
   ...overrides,
 });
 
-it("moves a selection to the other lane's model, keeping its thinking level", () => {
+it("moves a selection to the other lane, keeping its TrueFoundry model and options", () => {
   assert.deepStrictEqual(moveSelection(synced, "private"), {
-    instanceId: LANES.private.instanceId,
-    model: LANES.private.model,
+    instanceId: LANES.private,
+    model: synced.model,
     options: [{ id: "thinking", value: "max" }],
   });
+  assert.deepStrictEqual(moveSelection(syncedGpt, "private"), {
+    instanceId: LANES.private,
+    model: "truefoundry-openai/gpt-6-astra",
+    options: [{ id: "reasoningEffort", value: "high" }],
+  });
   assert.deepStrictEqual(moveSelection(privateGpt, "synced"), {
-    instanceId: LANES.synced.instanceId,
-    model: LANES.synced.model,
+    instanceId: LANES.synced,
+    model: "truefoundry-openai/gpt-6-astra",
+  });
+});
+
+it("replaces a model outside TrueFoundry with the default, keeping the thinking level", () => {
+  assert.deepStrictEqual(moveSelection(privateOpenRouter, "synced"), {
+    instanceId: LANES.synced,
+    model: DEFAULT_MODEL,
+    options: [{ id: "thinking", value: "high" }],
+  });
+  assert.deepStrictEqual(moveSelection(undefined, "private"), {
+    instanceId: LANES.private,
+    model: DEFAULT_MODEL,
   });
 });
 
@@ -62,7 +96,7 @@ it("leaves a message alone when no rule picks a lane", () => {
 
 it("moves a message, using the thread's selection when it carries none", () => {
   const routed = applyLane(message(), synced, "private");
-  assert.strictEqual(routed.modelSelection?.instanceId, LANES.private.instanceId);
+  assert.strictEqual(routed.modelSelection?.instanceId, LANES.private);
   assert.deepStrictEqual(routed.dispatchMode, { type: "start_immediately" });
 });
 
@@ -84,7 +118,7 @@ it("keeps a deferred launch deferred", () => {
     "synced",
   );
   assert.strictEqual(routed.dispatchMode, dispatchMode);
-  assert.strictEqual(routed.modelSelection?.instanceId, LANES.synced.instanceId);
+  assert.strictEqual(routed.modelSelection?.instanceId, LANES.synced);
 });
 
 const input: LaneInput = { text: "hello", source: "web", createdBy: "user", first: true };

@@ -1,7 +1,8 @@
 // Lanes (fork, FORK.md): before T3 takes a message, Ag's `lane` rules (ag-rules hook `lane`, ~/ag/ag-rules/README.md)
-// can pick the Pi lane it runs in: `piPrivate` (Nathan's personal OpenRouter account, Pi sessions outside Nessie) or
-// `pi` (company TrueFoundry models, synced to Nessie); ag's docs/t3.md, "Two lanes". Nathan's rules move a message
-// private when he says "off the record", and can decide a new thread's lane from its first message. T3's own lane
+// can pick the Pi lane it runs in: `piPrivate` (Pi sessions outside Nessie) or `pi` (synced to Nessie); ag's
+// docs/t3.md, "Two lanes". Both lanes run the same TrueFoundry models; only where Pi stores the session differs.
+// Nathan's rules move a message private when he says "off the record", and decide a new thread's lane from its first
+// message (only FreeTime work syncs). T3's own lane
 // switch does the rest, so the message only ever reaches a session of the chosen lane. Rules run for every message
 // the user sends and for the first message of any thread (incl. threads agents launch); when they disagree, private
 // wins. Any failure (no ag checkout, a broken or slow rule) leaves the selection as it was.
@@ -22,17 +23,14 @@ import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.t
 import type { ThreadLaunchInput } from "../orchestration-v2/ThreadLaunchService.ts";
 
 export type Lane = "private" | "synced";
-/** Each Pi lane's instance and the model a thread gets when it moves there. */
+/** Each lane's Pi instance. They run the same TrueFoundry models, so a thread keeps its model when it changes lanes. */
 export const LANES = {
-  private: {
-    instanceId: ProviderInstanceId.make("piPrivate"),
-    model: "openrouter/anthropic/claude-opus-5.5",
-  },
-  synced: {
-    instanceId: ProviderInstanceId.make("pi"),
-    model: "truefoundry/anthropic-primary/claude-opus-5-5",
-  },
+  private: ProviderInstanceId.make("piPrivate"),
+  synced: ProviderInstanceId.make("pi"),
 } as const;
+/** The model a thread gets in its new lane when it has none, or one outside TrueFoundry (an old OpenRouter pick). */
+export const DEFAULT_MODEL = "truefoundry/anthropic-primary/claude-opus-5-5";
+const onTrueFoundry = (model: string) => /^truefoundry(-[a-z]+)?\//.test(model);
 const RULES_TIMEOUT = Duration.seconds(15);
 
 type MessageDispatch = Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }>;
@@ -45,23 +43,22 @@ export interface LaneInput {
 }
 
 const laneOf = (instanceId: string): Lane | null =>
-  instanceId === LANES.private.instanceId
-    ? "private"
-    : instanceId === LANES.synced.instanceId
-      ? "synced"
-      : null;
+  instanceId === LANES.private ? "private" : instanceId === LANES.synced ? "synced" : null;
 
 /**
- * The selection moved to `lane`'s default model, keeping its thinking level. Unchanged when it's already in that
- * lane (an explicit model pick survives) or isn't a Pi lane at all (other providers are left alone).
+ * The selection moved to `lane`, keeping its model and options; a model outside TrueFoundry becomes the default model,
+ * keeping the thinking level. Unchanged when it's already in that lane or isn't a Pi lane at all (other providers are
+ * left alone).
  */
 export function moveSelection(selection: ModelSelection | undefined, lane: Lane): ModelSelection {
-  if (selection === undefined)
-    return createModelSelection(LANES[lane].instanceId, LANES[lane].model);
+  if (selection === undefined) return createModelSelection(LANES[lane], DEFAULT_MODEL);
   const current = laneOf(selection.instanceId);
   if (current === null || current === lane) return selection;
+  if (onTrueFoundry(selection.model)) {
+    return createModelSelection(LANES[lane], selection.model, selection.options);
+  }
   const thinking = selection.options?.filter((option) => option.id === "thinking");
-  return createModelSelection(LANES[lane].instanceId, LANES[lane].model, thinking);
+  return createModelSelection(LANES[lane], DEFAULT_MODEL, thinking);
 }
 
 /** The message moved to `lane`, or the same command when it's already there (or no rule picked a lane). */
