@@ -61,8 +61,15 @@ switch_to() { # $1 build dir name → current, restart, health-check
 # Turns run inside the server (Pi under ag-t3.service), so a restart cancels every running turn, and T3 then holds
 # that thread's queued messages instead of sending them. Deploys therefore restart only once no turn is running.
 busy() {
-	sqlite3 -readonly "$LIVE/userdata/statev2.sqlite" \
-		"select count(*) from orchestration_v2_projection_runs where status in ('preparing','starting','running','waiting')" 2>/dev/null | grep -qv '^0$'
+	# python3's sqlite3 module, not the sqlite3 CLI (not installed on every host). A failed read counts as busy.
+	local n
+	n=$(python3 - "$LIVE/userdata/statev2.sqlite" 2>/dev/null <<'PY'
+import sqlite3, sys
+db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True, timeout=60)
+print(db.execute("select count(*) from orchestration_v2_projection_runs where status in ('preparing','starting','running','waiting')").fetchone()[0])
+PY
+	) || return 0
+	[[ $n != 0 ]]
 }
 deploy_now() { # $1 new build, $2 current build (rollback target)
 	[[ -n $2 && $2 != "$1" ]] && echo "$2" >"$BUILDS/previous"
@@ -154,7 +161,8 @@ mkdir -p "$STAGE/userdata"
 # A busy timeout rides out the live server's brief write locks instead of failing the backup.
 for db in "$LIVE"/userdata/*.sqlite; do
 	[[ $(basename "$db") == server-owner.sqlite ]] && continue
-	sqlite3 -cmd '.timeout 60000' "$db" ".backup '$STAGE/userdata/$(basename "$db")'"
+	python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1], timeout=60).backup(sqlite3.connect(sys.argv[2]))' \
+		"$db" "$STAGE/userdata/$(basename "$db")"
 done
 cp "$LIVE/userdata/settings.json" "$STAGE/userdata/" 2>/dev/null || true
 node apps/server/dist/bin.mjs serve --host 127.0.0.1 --port $STAGE_PORT --no-browser --base-dir "$STAGE" "$HOME" >"$DIR/.preflight.log" 2>&1 &
