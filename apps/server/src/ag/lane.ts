@@ -167,7 +167,11 @@ export function routeLane<C extends OrchestrationV2Command>(
       threadId: message.threadId,
     });
     return routed as C;
-  }).pipe(Effect.withSpan("ag.routeLane"));
+  }).pipe(
+    // Lanes never block a message: any failure leaves it unchanged.
+    Effect.catchCause(() => Effect.succeed(command)),
+    Effect.withSpan("ag.routeLane"),
+  );
 }
 
 /** Route a launch's first message through the `lane` rules (the hook in ThreadMessageIntake.launchThread). */
@@ -196,5 +200,8 @@ export function routeLaunch(
       threadId: input.threadId,
     });
     return { ...input, modelSelection: moved };
-  }).pipe(Effect.withSpan("ag.routeLaunch"));
+  }).pipe(
+    Effect.catchCause(() => Effect.succeed(input)),
+    Effect.withSpan("ag.routeLaunch"),
+  );
 }
