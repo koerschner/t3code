@@ -1,25 +1,25 @@
 // Ag fork (FORK.md): when a thread becomes the active one (switching sessions by keyboard, link, palette or
-// notification), scroll the sidebar so its row is in view. The row's own active styling shows it as selected.
-import { useCallback, useEffect, useRef, useState } from "react";
+// notification), scroll the sidebar so its row is centered. The row's own active styling shows it as selected.
+import { useRef } from "react";
 
-export function useRevealActiveSidebarRow(
-  rowRef: (element: HTMLElement | null) => void,
+type RowRef = (element: HTMLElement | null) => (() => void) | undefined | void;
+
+// Returns a fresh ref each render, so React re-runs it whenever isActive changes; it keeps no state (re-attaching
+// never re-renders the row) and forwards the wrapped ref's cleanup.
+export function useRevealActiveSidebarRow<R extends RowRef>(
+  rowRef: R,
   isActive: boolean,
-): (element: HTMLElement | null) => void {
-  const [row, setRow] = useState<HTMLElement | null>(null);
-  const wasActive = useRef(false);
-  useEffect(() => {
-    const becameActive = isActive && !wasActive.current;
-    wasActive.current = isActive;
-    if (becameActive && row) revealSidebarRow(row);
-  }, [isActive, row]);
-  return useCallback(
-    (element: HTMLElement | null) => {
-      setRow(element);
-      rowRef(element);
-    },
-    [rowRef],
-  );
+): (element: HTMLElement | null) => ReturnType<R> {
+  const revealed = useRef(false);
+  return (element) => {
+    if (!isActive) {
+      revealed.current = false;
+    } else if (element && !revealed.current) {
+      revealed.current = true;
+      revealSidebarRow(element);
+    }
+    return rowRef(element) as ReturnType<R>;
+  };
 }
 
 export function revealSidebarRow(row: HTMLElement): void {

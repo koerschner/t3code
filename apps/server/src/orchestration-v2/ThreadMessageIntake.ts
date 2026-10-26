@@ -41,12 +41,13 @@ const releaseUnusedClaims = Effect.fn("ThreadMessageIntake.releaseUnusedClaims")
   if (claimedPaths.length === 0) return;
   const config = yield* ServerConfig.ServerConfig;
   const retained = new Set(
-    accepted.map((attachment) =>
-      resolveAttachmentPath({
+    accepted.flatMap((attachment) => {
+      const path = resolveAttachmentPath({
         attachmentsDir: config.attachmentsDir,
         attachment,
-      }),
-    ),
+      });
+      return path ? [path, `${path}.txt`] : [];
+    }),
   );
   yield* AttachmentClaims.releaseClaimedAttachments(
     claimedPaths.filter((path) => !retained.has(path)),
@@ -85,8 +86,7 @@ export const dispatchCommand = Effect.fn("ThreadMessageIntake.dispatchCommand")(
   incoming: OrchestrationV2Command,
 ) {
   const routed = yield* AgLane.routeLane(incoming);
-  const command =
-    routed.type === "message.dispatch" ? yield* withGuestAttachments(routed) : routed;
+  const command = routed.type === "message.dispatch" ? yield* withGuestAttachments(routed) : routed;
   const threads = yield* ThreadManagement.ThreadManagementService;
   if (command.type === "runtime-request.respond" && command.attachmentsByQuestionId) {
     const config = yield* ServerConfig.ServerConfig;
