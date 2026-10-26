@@ -53,8 +53,8 @@ in place, Ag tabs open in ag-dash.
 `piPrivate` (Pi sessions outside Nessie) or `pi` (synced to Nessie). Both lanes run the same TrueFoundry models, so a
 thread keeps its model when it changes lanes. The rules run for every message Nathan sends and for the first message of
 every thread, whichever way it starts (the composer and quick entry launch threads, `ag-t3 new` creates them, agents
-launch them over MCP); when rules disagree, private wins. His `freetime-sync` rule starts every thread private and lets
-Jev move FreeTime work to `pi`; `off-the-record` moves a thread private when he says "off the record". The message
+launch them over MCP); when rules disagree, private wins. Threads start in `pi`; his
+`off-the-record` rule moves a thread private when he says "off the record". The message
 starts in its lane through T3's own lane switch (queued behind a running turn, never steered into it).
 `apps/server/src/ag/lane.ts` loads ag-rules' engine from `~/ag`; a failure or a rule slower than 15 s leaves the
 selection unchanged.
