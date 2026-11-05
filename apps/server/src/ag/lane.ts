@@ -18,6 +18,7 @@ import { createModelSelection } from "@t3tools/shared/model";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
 import type { ThreadLaunchInput } from "../orchestration-v2/ThreadLaunchService.ts";
@@ -122,8 +123,15 @@ export async function laneVerdict(
   return verdict;
 }
 
+class LaneRulesError extends Schema.TaggedError<LaneRulesError>()("LaneRulesError", {
+  cause: Schema.Defect(),
+}) {}
+
 const decide = (input: LaneInput) =>
-  Effect.tryPromise(async () => laneVerdict(input, await loadAgRules())).pipe(
+  Effect.tryPromise({
+    try: async () => laneVerdict(input, await loadAgRules()),
+    catch: (cause) => new LaneRulesError({ cause }),
+  }).pipe(
     Effect.timeoutOption(RULES_TIMEOUT),
     Effect.map(Option.getOrUndefined),
     Effect.orElseSucceed((): Lane | undefined => undefined),
