@@ -425,7 +425,9 @@ export class SessionStore extends Context.Service<
 >()("t3/auth/SessionStore") {}
 
 const SIGNING_SECRET_NAME = "server-signing-key";
-const DEFAULT_SESSION_TTL = Duration.days(30);
+// Ag fork: paired clients (Mac app, phone) keep their saved login for a year instead of 30 days, so a lapsed
+// token never strands a client whose re-pair needs someone at that device. DPoP tokens still pass their own TTL.
+const DEFAULT_SESSION_TTL = Duration.days(365);
 const DEFAULT_WEBSOCKET_TOKEN_TTL = Duration.minutes(5);
 
 const SessionClaims = Schema.Struct({
