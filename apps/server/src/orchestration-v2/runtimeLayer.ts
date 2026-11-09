@@ -1,4 +1,5 @@
 import * as WorktreeBranchSync from "./WorktreeBranchSync.ts";
+import { AG_PROVIDER_IDLE_TIMEOUT_MS } from "../ag/providerSessions.ts";
 import * as GuestShareService from "../guest/GuestShareService.ts";
 import * as UsageLimitRecoveryWorker from "./UsageLimitRecoveryWorker.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
@@ -131,7 +132,9 @@ const layerCommandOutputHubProvided = CommandOutputHub.layer.pipe(
   Layer.provide(Layer.merge(layerEventSink, ProjectionStore.layer)),
 );
 
-const layerProviderSessionManagerProvided = ProviderSessionManager.layer.pipe(
+const layerProviderSessionManagerProvided = ProviderSessionManager.layerWithOptions({
+  idleTimeoutMs: AG_PROVIDER_IDLE_TIMEOUT_MS,
+}).pipe(
   Layer.provide(
     Layer.mergeAll(
       layerCommandOutputHubProvided,
