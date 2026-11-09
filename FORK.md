@@ -36,6 +36,11 @@ it no update feed and it never replaces itself with upstream's build. It shares 
 so it's used _instead of_ T3 Code (Nightly), which is retired to `/Applications/Retired/`. For fast UI iteration,
 run the web UI against a dev server (`AGENTS.md`); the app itself picks the change up on the next `ag/ship`.
 
+If the client Mac is asleep or has had input in the last 10 minutes when a build finishes, the script marks the client
+install as pending and finishes the rest of the run. The `t3-mac-app-install` routine runs
+`ag/build-mac --install-pending` every 5 minutes and installs the pending build once the client Mac is awake and idle
+for 10 minutes.
+
 **Quick entry** (fork, the Mac app only): both Command keys, from any app, open a floating box that starts a new
 thread in the default project without leaving the app you're in; with Shift too, that app's window is captured
 and attached. Enter sends, ⌘Enter sends and pins, ⌥Enter sends and opens the thread, Tab cycles the model chips
@@ -88,21 +93,21 @@ Upstream lands dozens of commits a day, and `ag/sync-upstream` merges them night
 
 ## Patch surface (every upstream file the fork touches)
 
-| File                                                      | Why                                                                                                                                                                                                         |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AGENTS.md`                                               | Pointer to this file (top lines)                                                                                                                                                                            |
-| `apps/web/src/components/sidebar/SidebarThreadRow.tsx`    | `SidebarThreadRow`: `useRevealActiveSidebarRow` wraps the row ref (`apps/web/src/ag/revealActiveSidebarRow.ts`) + its import                                                                                |
-| `apps/web/src/main.tsx`                                   | `installNormalMode()` + its import (`apps/web/src/ag/normalMode.ts`: vim normal mode, j/k/i/e/u and / to search sessions); `installSingleWorkspace()` + import (`ag/singleWorkspace.ts`)                    |
-| `apps/web/src/components/sidebar/SidebarThreadRow.tsx`    | Single workspace hooks: `data-ag-row` (row body/head/title/meta), `data-ag-noise` (provider/env icons; hover-card project/env/model lines), `data-ag-quiet` (project label), class `ag-noise` (row favicon) |
-| `apps/web/src/components/settings/SettingsPanels.tsx`     | `<SingleWorkspaceSetting />` at the top of Sidebar + import                                                                                                                                                 |
-| `apps/web/src/routes/__root.tsx`                          | `<AgQuickEntryHost />` beside `<SnapShotCoordinator />` + its import (`apps/web/src/ag/quickEntry`: the quick entry box)                                                                                    |
-| `apps/web/src/routes/__root.tsx`                          | `<AgDeepSearchHost />` after `<AgQuickEntryHost />` + its import (`apps/web/src/ag/deepSearch`: ⌥⌘K deep search)                                                                                            |
-| `apps/server/src/server.ts`                               | `layerAgDeepSearchRoute` in `layerMakeRoutes` + its import (`apps/server/src/ag/deepSearchRoute.ts`: proxies Ag's ag-deepsearch)                                                                            |
-| `apps/server/src/orchestration-v2/ThreadMessageIntake.ts` | `dispatchCommand` (`routed = AgLane.routeLane(incoming)` before upstream's guest attachments) and `launchThread` (`AgLane.routeLaunch(incoming)`) + import (`apps/server/src/ag/lane.ts`: lanes) |
+| File                                                      | Why                                                                                                                                                                                                             |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                                               | Pointer to this file (top lines)                                                                                                                                                                                |
+| `apps/web/src/components/sidebar/SidebarThreadRow.tsx`    | `SidebarThreadRow`: `useRevealActiveSidebarRow` wraps the row ref (`apps/web/src/ag/revealActiveSidebarRow.ts`) + its import                                                                                    |
+| `apps/web/src/main.tsx`                                   | `installNormalMode()` + its import (`apps/web/src/ag/normalMode.ts`: vim normal mode, j/k/i/e/u and / to search sessions); `installSingleWorkspace()` + import (`ag/singleWorkspace.ts`)                        |
+| `apps/web/src/components/sidebar/SidebarThreadRow.tsx`    | Single workspace hooks: `data-ag-row` (row body/head/title/meta), `data-ag-noise` (provider/env icons; hover-card project/env/model lines), `data-ag-quiet` (project label), class `ag-noise` (row favicon)     |
+| `apps/web/src/components/settings/SettingsPanels.tsx`     | `<SingleWorkspaceSetting />` at the top of Sidebar + import                                                                                                                                                     |
+| `apps/web/src/routes/__root.tsx`                          | `<AgQuickEntryHost />` beside `<SnapShotCoordinator />` + its import (`apps/web/src/ag/quickEntry`: the quick entry box)                                                                                        |
+| `apps/web/src/routes/__root.tsx`                          | `<AgDeepSearchHost />` after `<AgQuickEntryHost />` + its import (`apps/web/src/ag/deepSearch`: ⌥⌘K deep search)                                                                                                |
+| `apps/server/src/server.ts`                               | `layerAgDeepSearchRoute` in `layerMakeRoutes` + its import (`apps/server/src/ag/deepSearchRoute.ts`: proxies Ag's ag-deepsearch)                                                                                |
+| `apps/server/src/orchestration-v2/ThreadMessageIntake.ts` | `dispatchCommand` (`routed = AgLane.routeLane(incoming)` before upstream's guest attachments) and `launchThread` (`AgLane.routeLaunch(incoming)`) + import (`apps/server/src/ag/lane.ts`: lanes)                |
 | `apps/server/src/orchestration-v2/runtimeLayer.ts`        | `ProviderSessionManager.layerWithOptions({ idleTimeoutMs: AG_PROVIDER_IDLE_TIMEOUT_MS })` instead of `.layer` + import (`apps/server/src/ag/providerSessions.ts`: idle Pi sessions stay loaded 2 h, not 30 min) |
-| `apps/desktop/src/app/DesktopApp.ts`                      | `AgQuickEntry.start(environment.platform)` after `snapShot.initialize` + import (`apps/desktop/src/ag/QuickEntry.ts`: both-⌘ chord, screenshot, panel window)                                               |
-| `apps/desktop/src/window/DesktopWindow.ts`                | main window's `setWindowOpenHandler`: `quickEntryWindowOpenResponse(details)` first (`apps/desktop/src/ag/quickEntryWindow.ts`) + import                                                                    |
-| `apps/desktop/src/preload.ts`                             | `import "./ag/preload.ts"` (exposes `window.agDesktop.quickEntry`, quick entry's renderer → main IPC)                                                                                                       |
+| `apps/desktop/src/app/DesktopApp.ts`                      | `AgQuickEntry.start(environment.platform)` after `snapShot.initialize` + import (`apps/desktop/src/ag/QuickEntry.ts`: both-⌘ chord, screenshot, panel window)                                                   |
+| `apps/desktop/src/window/DesktopWindow.ts`                | main window's `setWindowOpenHandler`: `quickEntryWindowOpenResponse(details)` first (`apps/desktop/src/ag/quickEntryWindow.ts`) + import                                                                        |
+| `apps/desktop/src/preload.ts`                             | `import "./ag/preload.ts"` (exposes `window.agDesktop.quickEntry`, quick entry's renderer → main IPC)                                                                                                           |
 
 ## Rules carried over from Ag
 

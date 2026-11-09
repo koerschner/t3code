@@ -3,6 +3,11 @@
 #
 #   ag/build-mac [<rev>]      default origin/main. Run from the session host (it drives ag-mac) or on ag-mac itself.
 #   ag/build-mac --status     the installed version and the last builds
+#   ag/build-mac --install-pending   install the build waiting for the client Mac, once that can't interrupt Nathan
+#                             (the routine t3-mac-app-install runs this every 5 minutes)
+#
+# A build installs on ag-mac at once. The client Mac gets it once it answers and has had no keyboard or mouse input
+# for 10 minutes; until then (asleep, off the tailnet, in use) the build waits as pending.
 #
 # No upstream file is patched in git. At build time only, in a clean worktree, it stamps:
 #   - productName "T3 Code (Ag)" (apps/desktop/package.json), so it installs beside upstream's apps;
@@ -14,10 +19,14 @@ set -euo pipefail
 
 APP="T3 Code (Ag)"
 CLIENT=${AG_T3_MAC_CLIENT:-ag-client}
-LOG=$HOME/.local/share/t3-mac-builds/build.jsonl
+BUILDS=$HOME/.local/share/t3-mac-builds
+LOG=$BUILDS/build.jsonl
+IDLE_S=${AG_T3_MAC_IDLE_S:-600}
 
 if [[ $(uname) != Darwin ]]; then # on the session host: run the same script on ag-mac at the same commit
-	[[ ${1:-} == --status ]] && { ssh "$CLIENT" "defaults read '/Applications/$APP.app/Contents/Info' CFBundleShortVersionString 2>/dev/null || echo 'not installed'"; ag-mac run "tail -5 $LOG 2>/dev/null"; exit; }
+	[[ ${1:-} == --status ]] && { ssh "$CLIENT" "defaults read '/Applications/$APP.app/Contents/Info' CFBundleShortVersionString 2>/dev/null || echo 'not installed'"; ag-mac run "~/t3code/ag/build-mac --status"; exit; }
+	# Only a checkout that has this flag can have left a build pending.
+	[[ ${1:-} == --install-pending ]] && exec ag-mac run "cd ~/t3code && ! grep -q -- --install-pending ag/build-mac || ag/build-mac --install-pending"
 	rev=$(git -C "$(dirname "$(readlink -f "$0")")/.." rev-parse "${1:-origin/main}^{commit}")
 	exec ag-mac run "cd ~/t3code && git fetch -q origin && git -c advice.detachedHead=false checkout -q --detach $rev && ag/build-mac $rev"
 fi
@@ -27,13 +36,58 @@ say() { printf '\033[1m▸ %s\033[0m\n' "$*"; }
 die() { printf '\033[31mbuild-mac: %s\033[0m\n' "$*" >&2; record fail "$*"; exit 1; }
 record() { mkdir -p "$(dirname "$LOG")"; printf '{"ts":"%s","sha":"%s","result":"%s","note":"%s"}\n' "$(date -u +%FT%TZ)" "${SHA:-}" "$1" "$2" >>"$LOG"; }
 
-[[ ${1:-} == --status ]] && { tail -5 "$LOG" 2>/dev/null; exit; }
+# Match the path literally: pgrep/pkill read "(Ag)" as a regex group and would miss the running app, leaving the old
+# code in memory under a replaced bundle.
+proc="ps ax -o pid=,command= | grep -F '/Applications/$APP.app/Contents/MacOS/' | grep -v grep"
+
+# Installs the bundle $1 on the client Mac, or returns 2 (the build stays pending) when the Mac is unreachable or had
+# keyboard or mouse input in the last IDLE_S seconds. The copy lands before the app quits, so an open app is down for
+# seconds, and it reopens in the background.
+install_client() {
+	local bundle=$1 running idle
+	ssh -o ConnectTimeout=10 -o BatchMode=yes "$CLIENT" true 2>/dev/null || { say "$CLIENT is unreachable"; return 2; }
+	idle=$(ssh "$CLIENT" "ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print int(\$NF / 1000000000); exit}'" || true)
+	[[ $idle =~ ^[0-9]+$ ]] || idle=0
+	((idle >= IDLE_S)) || { say "$CLIENT is in use (last input ${idle}s ago)"; return 2; }
+	running=$(ssh "$CLIENT" "$proc | head -1" || true)
+	say "install on $CLIENT"
+	tar -C "$(dirname "$bundle")" -cf - "$APP.app" | ssh "$CLIENT" "set -e; rm -rf '/tmp/$APP.app'; tar -C /tmp -xf -; xattr -cr '/tmp/$APP.app'" || return 1
+	[[ -z $running ]] || ssh "$CLIENT" "osascript -e 'quit app \"$APP\"'; sleep 4; $proc | awk '{print \$1}' | xargs kill 2>/dev/null || true"
+	ssh "$CLIENT" "set -e; rm -rf '/Applications/$APP.app'; mv '/tmp/$APP.app' /Applications/" || return 1
+	[[ -z $running ]] || ssh "$CLIENT" "open -g '/Applications/$APP.app'" || true
+}
+
+if [[ ${1:-} == --status ]]; then
+	tail -5 "$LOG" 2>/dev/null || true
+	pending=$(cat "$BUILDS/client-pending" 2>/dev/null || true)
+	[[ -z $pending ]] || echo "pending for $CLIENT: $pending"
+	exit 0
+fi
+if [[ ${1:-} == --install-pending ]]; then
+	pending=$(cat "$BUILDS/client-pending" 2>/dev/null || true)
+	[[ -n $pending ]] || exit 0
+	mkdir "$BUILDS/.lock" 2>/dev/null || exit 0 # a build is running, and it tries the client itself
+	trap 'rmdir "$BUILDS/.lock"' EXIT
+	SHA=$pending
+	BUNDLE=$(find "$BUILDS/$pending/release/app" -maxdepth 2 -name "$APP.app" -type d 2>/dev/null | head -1 || true)
+	[[ -n $BUNDLE ]] || { rm -f "$BUILDS/client-pending"; die "the pending build $pending has no $APP.app"; }
+	VERSION=$(defaults read "$BUNDLE/Contents/Info" CFBundleShortVersionString)
+	installed=$(ssh -o ConnectTimeout=10 -o BatchMode=yes "$CLIENT" "defaults read '/Applications/$APP.app/Contents/Info' CFBundleShortVersionString" 2>/dev/null || true)
+	[[ $installed != "$VERSION" ]] || { rm -f "$BUILDS/client-pending"; exit 0; }
+	client=0
+	install_client "$BUNDLE" || client=$?
+	((client != 2)) || exit 0 # unreachable or in use: the next run tries again
+	((client == 0)) || die "installing the pending build on $CLIENT failed"
+	rm -f "$BUILDS/client-pending"
+	record ok "$VERSION on $CLIENT (was pending)"
+	echo "installed $APP $VERSION on $CLIENT"
+	exit 0
+fi
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 cd "$REPO"
 git fetch -q origin
 SHA=$(git rev-parse "${1:-origin/main}^{commit}")
 SHORT=${SHA:0:10}
-BUILDS=$HOME/.local/share/t3-mac-builds
 DIR=$BUILDS/$SHORT
 mkdir -p "$BUILDS"
 mkdir "$BUILDS/.lock" 2>/dev/null || die "another build is running (remove $BUILDS/.lock if stale)"
@@ -63,14 +117,13 @@ BUNDLE=$(find "$DIR/release/app" -maxdepth 2 -name "$APP.app" -type d 2>/dev/nul
 [[ ! -e $BUNDLE/Contents/Resources/app-update.yml ]] || die "the build has an update feed (app-update.yml); refusing to install"
 codesign --verify --deep "$BUNDLE" 2>/dev/null || codesign --force --deep --sign - "$BUNDLE" >/dev/null 2>&1 || die "ad-hoc signing failed"
 
-say "install on $CLIENT"
-# Match the path literally: pgrep/pkill read "(Ag)" as a regex group and would miss the running app, leaving the old
-# code in memory under a replaced bundle.
-proc="ps ax -o pid=,command= | grep -F '/Applications/$APP.app/Contents/MacOS/' | grep -v grep"
-running=$(ssh "$CLIENT" "$proc | head -1")
-[[ -n $running ]] && ssh "$CLIENT" "osascript -e 'quit app \"$APP\"'; sleep 4; $proc | awk '{print \$1}' | xargs kill 2>/dev/null || true"
-tar -C "$(dirname "$BUNDLE")" -cf - "$APP.app" | ssh "$CLIENT" "set -e; rm -rf '/tmp/$APP.app'; tar -C /tmp -xf -; xattr -cr '/tmp/$APP.app'; rm -rf '/Applications/$APP.app'; mv '/tmp/$APP.app' /Applications/"
-[[ -n $running ]] && ssh "$CLIENT" "open -g '/Applications/$APP.app'"
+client=0
+install_client "$BUNDLE" || client=$?
+case $client in
+0) rm -f "$BUILDS/client-pending" ;;
+2) echo "$SHORT" >"$BUILDS/client-pending" ;; # ag/build-mac --install-pending (routine t3-mac-app-install) finishes it
+*) die "installing on $CLIENT failed" ;;
+esac
 
 # Also install it here on ag-mac, paired to the same server, so agents test the Mac app (quick entry, windows,
 # screenshots) on ag-mac's own screen instead of driving the client's desktop.
@@ -80,7 +133,12 @@ running_here=$(eval "$proc" | head -1)
 rm -rf "/Applications/$APP.app" && ditto "$BUNDLE" "/Applications/$APP.app" && xattr -cr "/Applications/$APP.app"
 [[ -n $running_here ]] && open -g "/Applications/$APP.app"
 
-cd "$BUILDS"; ls -1t | grep -vE '^(build\.jsonl|\.lock)$' | tail -n +3 | while read -r old; do git -C "$REPO" worktree remove --force "$BUILDS/$old" 2>/dev/null || rm -rf "${BUILDS:?}/$old"; done
+cd "$BUILDS"; ls -1t | grep -vE '^(build\.jsonl|client-pending|\.lock)$' | tail -n +3 | while read -r old; do git -C "$REPO" worktree remove --force "$BUILDS/$old" 2>/dev/null || rm -rf "${BUILDS:?}/$old"; done
 git -C "$REPO" worktree prune
-record ok "$VERSION"
-echo "installed $APP $VERSION on $CLIENT and ag-mac"
+if [[ -e $BUILDS/client-pending ]]; then
+	record ok "$VERSION on ag-mac, pending for $CLIENT"
+	echo "installed $APP $VERSION on ag-mac; $CLIENT gets it once it's online and idle"
+else
+	record ok "$VERSION"
+	echo "installed $APP $VERSION on $CLIENT and ag-mac"
+fi
