@@ -158,11 +158,19 @@ say "preflight on :$STAGE_PORT with a copy of the live database"
 STAGE=$(mktemp -d /tmp/t3-preflight.XXXX)
 mkdir -p "$STAGE/userdata"
 # server-owner.sqlite is upstream's ownership lock: empty, and held in an exclusive transaction by the live server.
-# A busy timeout rides out the live server's brief write locks instead of failing the backup.
+# A busy timeout rides out the live server's brief write locks instead of failing the backup. The backup copies every
+# page, free ones included, so a copy that can't fit is refused before it starts instead of filling the disk.
 for db in "$LIVE"/userdata/*.sqlite; do
 	[[ $(basename "$db") == server-owner.sqlite ]] && continue
+	size=$(stat -c %s "$db")
+	need=$((size / 20 * 21 + (1 << 30)))
+	have=$(df --output=avail -B1 "$STAGE" | tail -1)
+	if ((have < need)); then
+		rm -rf "$STAGE"
+		die "preflight needs $((need >> 30)) GiB free in /tmp to copy $(basename "$db") ($((size >> 30)) GiB, free pages included) and has $((have >> 30)) GiB. Reclaiming the database's free pages (t3 doctor --fix, with ag-t3.service stopped for as long as it runs) makes room; that downtime is Nathan's call, so report this instead of deleting files or reclaiming to work around it."
+	fi
 	python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1], timeout=60).backup(sqlite3.connect(sys.argv[2]))' \
-		"$db" "$STAGE/userdata/$(basename "$db")"
+		"$db" "$STAGE/userdata/$(basename "$db")" || { rm -rf "$STAGE"; die "couldn't copy $(basename "$db") for the preflight"; }
 done
 cp "$LIVE/userdata/settings.json" "$STAGE/userdata/" 2>/dev/null || true
 node apps/server/dist/bin.mjs serve --host 127.0.0.1 --port $STAGE_PORT --no-browser --base-dir "$STAGE" "$HOME" >"$DIR/.preflight.log" 2>&1 &
